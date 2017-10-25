@@ -1,4 +1,5 @@
 const EventClient = require('../src');
+const server = require('ocbesbn-web-init');
 
 describe('Main', () =>
 {
@@ -6,6 +7,7 @@ describe('Main', () =>
     {
         /**
         * Simple connection with no acknowledgement
+        * Test cases with no interest to acknowledge the queue
         */
         it('Simple_Connection_With_NOACK', (done) =>
         {
@@ -26,7 +28,7 @@ describe('Main', () =>
                     })
                     .catch(done)
                 }
-            }, routingKey)
+            }, routingKey, true)
             .then(() =>
             {
                 publisherClient.emit(routingKey, {message: 'Test-NoACK-Value'});
@@ -36,6 +38,7 @@ describe('Main', () =>
 
         /**
         * Simple connection with acknowledgement
+        * Test cases with interest to acknowledge the queue
         */
         it('Simple_Connection_With_ACK', (done) =>
         {
@@ -60,8 +63,10 @@ describe('Main', () =>
                 }
                 else if (iteration == 1)
                 {
-                    return Promise.reject(new Error('test'));
+                    return Promise.reject(new Error('Test to acknowledge with error'));
                 }
+
+                return Promise.resolve();
             }, routingKey)
             .then(() =>
             {
@@ -72,6 +77,8 @@ describe('Main', () =>
 
         /**
         * Simple with multiple instances
+        * Test cases with no interest to acknowledge the queue and mulitple instance subscribed
+        * to the same queue, to check there is no duplicates
         */
         it('Simple_Connection_With_Multiple', (done) =>
         {
@@ -91,6 +98,49 @@ describe('Main', () =>
             }
 
             Promise.all([
+                subscriberClient1.subscribe(callback.bind(this, 'client1'), routingKey, true),
+                subscriberClient2.subscribe(callback.bind(this, 'client2'), routingKey, true)
+            ])
+            .then(() =>
+            {
+                publisherClient.emit(routingKey, {message: 'Test-ACK-Value'});
+            });
+        });
+
+        /**
+        * Simple with multiple instances
+        * Test cases with interest to acknowledge the queue and mulitple instances subscribed
+        * to the same queue, to check there is no duplicates
+        */
+        it('Simple_Connection_With_Multiple_ACK', (done) =>
+        {
+            let iteration = 0;
+            const routingKey = 'test.Instances';
+
+            const publisherClient = new EventClient();
+            const subscriberClient1 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES_NACK'});
+            const subscriberClient2 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES_NACK'});
+
+            const callback = (client, msg, rawMsg) =>
+            {
+                iteration++;
+
+                if (iteration > 1)
+                {
+                    subscriberClient2.unSubscribe(routingKey);
+                    subscriberClient1.unSubscribe(routingKey);
+
+                    done();
+
+                    return Promise.resolve();
+                }
+                else
+                {
+                    return Promise.reject(new Error('Test to acknowledge with error in multiple instances'))
+                }
+            }
+
+            Promise.all([
                 subscriberClient1.subscribe(callback.bind(this, 'client1'), routingKey),
                 subscriberClient2.subscribe(callback.bind(this, 'client2'), routingKey)
             ])
@@ -98,6 +148,63 @@ describe('Main', () =>
             {
                 publisherClient.emit(routingKey, {message: 'Test-ACK-Value'});
             });
+        });
+
+        /**
+        * Shutdown and restart
+        * Simulate the shutdown and restart of subscriptio, a server goes down while processing item
+        */
+        it('Shutdown_On_Subscription_And_restart', (done) =>
+        {
+            const publisherClient = new EventClient();
+            const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_Shutdown_Restart'});
+            const routingKey = 'test.shutdown';
+
+            const subscribe = (callback) => {subscriberClient.subscribe(callback, routingKey)};
+            const publish = () => {publisherClient.emit(routingKey, {message: 'Test-ACK-Value'})};
+
+            var app = server.init({
+                routes: {
+                    addRoutes : false
+                },
+                server: {
+                    port: 3000,
+                    mode: server.Server.Mode.Dev,
+                    events: {
+                        onStart: () => { subscribe(() => {publish(); server.end();}); },
+                        onEnd: () =>  { startNewServer(); }
+                    },
+                    webpack: {
+                        useWebpack : false
+                    },
+                    enableBouncer: false
+                }
+            });
+
+            const startNewServer = function()
+            {
+                var newApp = server.init({
+                    routes: {
+                        addRoutes : false
+                    },
+                    server: {
+                        port: 3000,
+                        mode: server.Server.Mode.Dev,
+                        events: {
+                            onStart: () => { subscribe((msg, raw) => {
+                                console.log('Recieved', msg);
+                                done();
+                                return Promise.resolve();
+                            }) },
+                            onEnd: () =>  {  }
+                        },
+                        webpack: {
+                            useWebpack : false
+                        },
+                        enableBouncer: false
+                    }
+                });
+            }
         });
 
     });

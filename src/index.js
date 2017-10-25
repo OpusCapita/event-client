@@ -162,10 +162,23 @@ EventClient.prototype.ack = function(message)
  * This method helps to subscribe for an event using routing key
  * @param {Function} callback - callback function
  * @param {String} key - routing key for the message
+ * @param {Boolean} noAck - routing key for the message
  * @return {Promise}
  */
-EventClient.prototype.subscribe = function(callback, key)
+EventClient.prototype.subscribe = function(callback, key, noAck)
 {
+    const messageCallback = (msg, rawMsg) =>
+    {
+        var result = callback(msg, rawMsg);
+
+        if (!noAck && (typeof result == 'undefined' || !result.then))
+        {
+            return Promise.reject(new Error(`No return statement in callback to acknowledge message for key ${key}`));
+        }
+
+        return result;
+    }
+
     const bindQueue = () =>
     {
         return this.channel.assertQueue(this.config.queueName)
@@ -188,7 +201,7 @@ EventClient.prototype.subscribe = function(callback, key)
                 handler: (msg) => {
                     let message = this.config.parser(msg.content.toString());
                     this.logger.info(`Recieved message %j for key '${key}'`, message, msg);
-                    return callback(message, msg);
+                    return messageCallback(message, msg);
                 }
             }));
 
