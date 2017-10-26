@@ -6,6 +6,13 @@ describe('Main', () =>
     describe('#init()', () =>
     {
         /**
+        * Check rabbitMQ is ready
+        */
+        before('ACL connection', (done) =>
+        {
+            done();
+        });
+        /**
         * Simple connection with no acknowledgement
         * Test cases with no interest to acknowledge the queue
         */
@@ -160,8 +167,8 @@ describe('Main', () =>
             const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_Shutdown_Restart'});
             const routingKey = 'test.shutdown';
 
-            const subscribe = (callback) => {subscriberClient.subscribe(callback, routingKey)};
-            const publish = () => {publisherClient.emit(routingKey, {message: 'Test-ACK-Value'})};
+            const subscribe = (callback) => {return subscriberClient.subscribe(callback, routingKey)};
+            const publish = () => {return publisherClient.emit(routingKey, {message: 'Test-Restart-Value'})};
 
             var app = server.init({
                 routes: {
@@ -171,7 +178,18 @@ describe('Main', () =>
                     port: 3000,
                     mode: server.Server.Mode.Dev,
                     events: {
-                        onStart: () => { subscribe(() => {publish(); server.end();}); },
+                        onStart: () => {
+                            subscribe((msg) => {
+                                console.log('======>FIRST', msg);
+                            })
+                            .then(() =>
+                            {
+                                publish().then(() => {
+                                    console.log('======>Published');
+                                    server.end();
+                                });
+                            })
+                        },
                         onEnd: () =>  { startNewServer(); }
                     },
                     webpack: {
@@ -188,7 +206,7 @@ describe('Main', () =>
                         addRoutes : false
                     },
                     server: {
-                        port: 3000,
+                        port: 3001,
                         mode: server.Server.Mode.Dev,
                         events: {
                             onStart: () => { subscribe((msg, raw) => {
