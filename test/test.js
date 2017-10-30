@@ -128,6 +128,7 @@ describe('Main', () =>
             const subscriberClient1 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES_NACK'});
             const subscriberClient2 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES_NACK'});
 
+
             const callback = (client, msg, rawMsg) =>
             {
                 iteration++;
@@ -223,6 +224,34 @@ describe('Main', () =>
                     }
                 });
             }
+        });
+
+        // dispose all approach
+        it('Dispose_test', (done) =>
+        {
+            const publisherClient = new EventClient();
+            const queueName = "Simple_Connection_To_Test_Dispose";
+            const subscriberClient = new EventClient({queueName: queueName});
+            const routingKey = 'test.dispose';
+
+            const callback = (client, msg) =>
+            {
+                console.log('Recieved message:', client, msg);
+                done();
+            }
+
+            subscriberClient.subscribe(callback.bind(this, 'Client0'), routingKey, true)
+            .then(() =>
+            {
+                subscriberClient.disposeAll();
+
+                const subscriberClient1 = new EventClient({queueName: queueName});
+                subscriberClient1.subscribe(callback.bind(this, 'Client1'), routingKey, true);
+
+
+                return publisherClient.emit(routingKey, {message: 'Test-ACK-Value'});
+            });
+
         });
 
     });

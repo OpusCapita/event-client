@@ -259,6 +259,28 @@ EventClient.prototype.contextify = function(context)
 }
 
 /**
+ * Allows to reset the channel state to null, and unbind the channel
+ */
+EventClient.prototype.disposeAll = function()
+{
+    if (this.channel)
+    {
+        return this.channel.close()
+        .then(() =>
+        {
+            this.logger.info('Disposed all connection...');
+        })
+        .catch((err) =>
+        {
+            this.logger.info('Failed to dispose all connection...', err);
+        })
+    }
+
+    this.logger.info('No Channel found to dispose');
+    return Promise.resolve();
+}
+
+/**
  * Static object represents the event client
  *
  * @property {Function} serializer - An function takes the message in any form, but serialize the message
