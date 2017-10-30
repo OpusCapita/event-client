@@ -3,8 +3,9 @@
 const extend = require('extend');
 const configService = require('ocbesbn-config');
 const Promise = require('bluebird');
+const retry = require('bluebird-retry');
 const amqp = require('amqplib');
-const retry = require('amqplib-retry')
+const AMQPRequeue = require('amqplib-retry')
 const Logger = require('ocbesbn-logger');
 
 /**
@@ -52,13 +53,15 @@ var EventClient = function(config)
         .then((props) =>
         {
             logger.info(`Recieved consul properties`)
-            return amqp.connect({
-                protocol: 'amqp',
-                hostname: props.endpoint.host,
-                port: props.endpoint.port,
-                username: props.username,
-                password: props.password
-            })
+            return retry(() => {
+                return amqp.connect({
+                    protocol: 'amqp',
+                    hostname: props.endpoint.host,
+                    port: props.endpoint.port,
+                    username: props.username,
+                    password: props.password
+                })
+            }, {max_tries: 15, interval: 500});
         })
         .then((AMQPConn) =>
         {
@@ -190,7 +193,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         {
             this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
 
-            this.channel.consume(this.config.queueName, retry({
+            this.channel.consume(this.config.queueName, AMQPRequeue({
                 channel: this.channel,
                 consumerQueue: this.config.queueName,
                 failureQueue: this.config.queueName,
