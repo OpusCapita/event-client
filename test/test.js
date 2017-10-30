@@ -243,7 +243,7 @@ describe('Main', () =>
             subscriberClient.subscribe(callback.bind(this, 'Client0'), routingKey, true)
             .then(() =>
             {
-                subscriberClient.disposeAll();
+                subscriberClient.disposeSubscriber();
 
                 const subscriberClient1 = new EventClient({queueName: queueName});
                 subscriberClient1.subscribe(callback.bind(this, 'Client1'), routingKey, true);

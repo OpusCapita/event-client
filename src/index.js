@@ -259,24 +259,24 @@ EventClient.prototype.contextify = function(context)
 }
 
 /**
- * Allows to reset the channel state to null, and unbind the channel
+ * Allows to reset the channel and all its subscription lists
  */
-EventClient.prototype.disposeAll = function()
+EventClient.prototype.disposeSubscriber = function()
 {
     if (this.channel)
     {
         return this.channel.close()
         .then(() =>
         {
-            this.logger.info('Disposed all connection...');
+            this.logger.info('Disposed subscribed keys and channel connection...');
         })
         .catch((err) =>
         {
-            this.logger.info('Failed to dispose all connection...', err);
+            this.logger.info('Failed to dispose subscribed keys and channel connection...', err);
         })
     }
 
-    this.logger.info('No Channel found to dispose');
+    this.logger.info('No Channel found to dispose....');
     return Promise.resolve();
 }
 
