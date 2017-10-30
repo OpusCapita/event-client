@@ -28,7 +28,7 @@ describe('Main', () =>
             {
                 if (++iteration > 1)
                 {
-                    subscriberClient.unSubscribe(routingKey)
+                    subscriberClient.unsubscribe(routingKey)
                     .then(() =>
                     {
                         done();
@@ -61,7 +61,7 @@ describe('Main', () =>
 
                 if (iteration > 2)
                 {
-                    subscriberClient.unSubscribe(routingKey)
+                    subscriberClient.unsubscribe(routingKey)
                     .then(() =>
                     {
                         done();
@@ -100,8 +100,8 @@ describe('Main', () =>
             {
                 done();
 
-                subscriberClient2.unSubscribe(routingKey);
-                subscriberClient1.unSubscribe(routingKey);
+                subscriberClient2.unsubscribe(routingKey);
+                subscriberClient1.unsubscribe(routingKey);
             }
 
             Promise.all([
@@ -134,8 +134,8 @@ describe('Main', () =>
 
                 if (iteration > 1)
                 {
-                    subscriberClient2.unSubscribe(routingKey);
-                    subscriberClient1.unSubscribe(routingKey);
+                    subscriberClient2.unsubscribe(routingKey);
+                    subscriberClient1.unsubscribe(routingKey);
 
                     done();
 

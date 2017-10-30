@@ -23,10 +23,10 @@ events.subscribe('my-channel', console.log).then(() => events.emit('Hello, world
 events.subscribe('my-channel.#', console.log).then(() => events.emit('Hello, world!', 'my-channel.sub-channel'));
 
 // unsubscribe from a particular key
-events.unSubscribe('my-channel');
+events.unsubscribe('my-channel');
 
 // unsubscribe from a pattern
-events.unSubscribe('my-channel.#');
+events.unsubscribe('my-channel.#');
 ```
 
 ### Default configuration
@@ -41,7 +41,7 @@ The default configuration object provides hints about what the module's standard
     consul : {
         host : 'consul',
         AMQPServiceName  : 'amqp',
-        AMQPUserName: 'amqp/user',
+        AMQPUserKey: 'amqp/user',
         AMQPPasswordKey : 'amqp/password'
     },
     context : {

@@ -47,7 +47,7 @@ var EventClient = function(config)
             return Promise.props({
                 endpoint : consul.getEndPoint(config.consul.AMQPServiceName),
                 password : config.consul.AMQPPasswordKey && consul.get(config.consul.AMQPPasswordKey),
-                username: config.consul.AMQPUserName && consul.get(config.consul.AMQPUserName)
+                username: config.consul.AMQPUserKey && consul.get(config.consul.AMQPUserKey)
             });
         })
         .then((props) =>
@@ -230,7 +230,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
  * @param {String} key - name of the key
  * @return {Promise}
  */
-EventClient.prototype.unSubscribe = function(key)
+EventClient.prototype.unsubscribe = function(key)
 {
     return new Promise((resolve, reject) =>
     {
@@ -242,7 +242,7 @@ EventClient.prototype.unSubscribe = function(key)
         })
         .catch((err) =>
         {
-            this.logger.warn(`Failed to unSubscribe pattern/key '${key}' for queue '${this.config.queueName}'`, err);
+            this.logger.warn(`Failed to unsubscribe pattern/key '${key}' for queue '${this.config.queueName}'`, err);
             reject(err);
         });
     })
@@ -277,7 +277,7 @@ EventClient.DefaultConfig = {
     consul : {
         host : 'consul',
         AMQPServiceName  : 'amqp',
-        AMQPUserName: 'amqp/user',
+        AMQPUserKey: 'amqp/user',
         AMQPPasswordKey : 'amqp/password'
     },
     context : {
