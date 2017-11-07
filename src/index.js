@@ -17,7 +17,7 @@ const Logger = require('ocbesbn-logger');
  */
 
 /**
- * event clients, helps in connecting to external AMQP tool and
+ * event clients, helps in connecting to external Message Queue tool and
  * trigger an event or subscribe to an event
  */
 
@@ -288,8 +288,8 @@ EventClient.prototype.disposeSubscriber = function()
  * @property {String} queueName - name of the queue, default to serviceName
  * @property {object} consul - Object for configuring consul related parameters.
  * @property {String} consul.host - Hostname of a consul server.
- * @property {String} consul.MqServiceName - Name of the enpoint for the AMQP tool in consul.
- * @property {String} consul.MqPasswordKey - Consul configuration key for AMQP tool authorisation. Might be null or false if not desired to be used.
+ * @property {String} consul.MqServiceName - Name of the enpoint for the Message Queue tool in consul.
+ * @property {String} consul.MqPasswordKey - Consul configuration key for Message Queue tool authorisation. Might be null or false if not desired to be used.
  * @property {object} context - Optional context object to automatically extend emitted messages.
  */
 EventClient.DefaultConfig = {
