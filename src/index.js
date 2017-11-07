@@ -5,7 +5,7 @@ const configService = require('ocbesbn-config');
 const Promise = require('bluebird');
 const retry = require('bluebird-retry');
 const amqp = require('amqplib');
-const MqRequeue = require('amqplib-retry')
+const mqRequeue = require('amqplib-retry')
 const Logger = require('ocbesbn-logger');
 
 /**
@@ -45,9 +45,9 @@ var EventClient = function(config)
         return configService.init({ host : config.consul.host }).then(consul =>
         {
             return Promise.props({
-                endpoint : consul.getEndPoint(config.consul.MqServiceName),
-                password : config.consul.MqPasswordKey && consul.get(config.consul.MqPasswordKey),
-                username: config.consul.MqUserKey && consul.get(config.consul.MqUserKey)
+                endpoint : consul.getEndPoint(config.consul.mqServiceName),
+                password : config.consul.mqPasswordKey && consul.get(config.consul.mqPasswordKey),
+                username: config.consul.mqUserKey && consul.get(config.consul.mqUserKey)
             });
         })
         .then((props) =>
@@ -63,10 +63,10 @@ var EventClient = function(config)
                 })
             }, {max_tries: 15, interval: 500});
         })
-        .then((MqConn) =>
+        .then((mqConn) =>
         {
             logger.info(`Connection established..`);
-            return MqConn.createChannel();
+            return mqConn.createChannel();
         })
         .then((ch) =>
         {
@@ -122,10 +122,10 @@ EventClient.prototype.emit = function(key, message)
     if (!this.channel)
     {
         return this._getNewChannel(this.config)
-        .then((MqChannel) =>
+        .then((mqChannel) =>
         {
-            this.logger.info(`Mq connection established`);
-            this.channel = MqChannel;
+            this.logger.info(`mq connection established`);
+            this.channel = mqChannel;
             return emitEvent();
         })
         .catch((err) =>
@@ -151,9 +151,9 @@ EventClient.prototype.ack = function(message)
     if (!this.channel)
     {
         return _getNewChannel(this.config)
-        .then((MqChannel) =>
+        .then((mqChannel) =>
         {
-            this.channel = MqChannel;
+            this.channel = mqChannel;
             return acknowledge();
         })
     }
@@ -193,7 +193,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         {
             this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
 
-            this.channel.consume(this.config.queueName, MqRequeue({
+            this.channel.consume(this.config.queueName, mqRequeue({
                 channel: this.channel,
                 consumerQueue: this.config.queueName,
                 failureQueue: this.config.queueName,
@@ -215,9 +215,9 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
     if (!this.channel)
     {
         return this._getNewChannel()
-        .then((MqChannel) =>
+        .then((mqChannel) =>
         {
-            this.channel = MqChannel;
+            this.channel = mqChannel;
             return bindQueue();
         })
     }
@@ -288,8 +288,8 @@ EventClient.prototype.disposeSubscriber = function()
  * @property {String} queueName - name of the queue, default to serviceName
  * @property {object} consul - Object for configuring consul related parameters.
  * @property {String} consul.host - Hostname of a consul server.
- * @property {String} consul.MqServiceName - Name of the enpoint for the Message Queue tool in consul.
- * @property {String} consul.MqPasswordKey - Consul configuration key for Message Queue tool authorisation. Might be null or false if not desired to be used.
+ * @property {String} consul.mqServiceName - Name of the enpoint for the Message Queue tool in consul.
+ * @property {String} consul.mqPasswordKey - Consul configuration key for Message Queue tool authorisation. Might be null or false if not desired to be used.
  * @property {object} context - Optional context object to automatically extend emitted messages.
  */
 EventClient.DefaultConfig = {
@@ -298,9 +298,9 @@ EventClient.DefaultConfig = {
     queueName: configService.serviceName,
     consul : {
         host : 'consul',
-        MqServiceName  : 'amqp',
-        MqUserKey: 'mq/user',
-        MqPasswordKey : 'mq/password'
+        mqServiceName  : 'amqp',
+        mqUserKey: 'mq/user',
+        mqPasswordKey : 'mq/password'
     },
     context : {
     }
