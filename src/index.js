@@ -5,7 +5,7 @@ const configService = require('ocbesbn-config');
 const Promise = require('bluebird');
 const retry = require('bluebird-retry');
 const amqp = require('amqplib');
-const AMQPRequeue = require('amqplib-retry')
+const MqRequeue = require('amqplib-retry')
 const Logger = require('ocbesbn-logger');
 
 /**
@@ -63,10 +63,10 @@ var EventClient = function(config)
                 })
             }, {max_tries: 15, interval: 500});
         })
-        .then((AMQPConn) =>
+        .then((MqConn) =>
         {
             logger.info(`Connection established..`);
-            return AMQPConn.createChannel();
+            return MqConn.createChannel();
         })
         .then((ch) =>
         {
@@ -122,10 +122,10 @@ EventClient.prototype.emit = function(key, message)
     if (!this.channel)
     {
         return this._getNewChannel(this.config)
-        .then((AMQPChannel) =>
+        .then((MqChannel) =>
         {
-            this.logger.info(`AMQP connection established`);
-            this.channel = AMQPChannel;
+            this.logger.info(`Mq connection established`);
+            this.channel = MqChannel;
             return emitEvent();
         })
         .catch((err) =>
@@ -151,9 +151,9 @@ EventClient.prototype.ack = function(message)
     if (!this.channel)
     {
         return _getNewChannel(this.config)
-        .then((AMQPChannel) =>
+        .then((MqChannel) =>
         {
-            this.channel = AMQPChannel;
+            this.channel = MqChannel;
             return acknowledge();
         })
     }
@@ -193,7 +193,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         {
             this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
 
-            this.channel.consume(this.config.queueName, AMQPRequeue({
+            this.channel.consume(this.config.queueName, MqRequeue({
                 channel: this.channel,
                 consumerQueue: this.config.queueName,
                 failureQueue: this.config.queueName,
@@ -215,9 +215,9 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
     if (!this.channel)
     {
         return this._getNewChannel()
-        .then((AMQPChannel) =>
+        .then((MqChannel) =>
         {
-            this.channel = AMQPChannel;
+            this.channel = MqChannel;
             return bindQueue();
         })
     }
@@ -299,8 +299,8 @@ EventClient.DefaultConfig = {
     consul : {
         host : 'consul',
         MqServiceName  : 'amqp',
-        MqUserKey: 'amqp/user',
-        MqPasswordKey : 'amqp/password'
+        MqUserKey: 'mq/user',
+        MqPasswordKey : 'mq/password'
     },
     context : {
     }
