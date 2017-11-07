@@ -45,9 +45,9 @@ var EventClient = function(config)
         return configService.init({ host : config.consul.host }).then(consul =>
         {
             return Promise.props({
-                endpoint : consul.getEndPoint(config.consul.AMQPServiceName),
-                password : config.consul.AMQPPasswordKey && consul.get(config.consul.AMQPPasswordKey),
-                username: config.consul.AMQPUserKey && consul.get(config.consul.AMQPUserKey)
+                endpoint : consul.getEndPoint(config.consul.MqServiceName),
+                password : config.consul.MqPasswordKey && consul.get(config.consul.MqPasswordKey),
+                username: config.consul.MqUserKey && consul.get(config.consul.MqUserKey)
             });
         })
         .then((props) =>
@@ -288,8 +288,8 @@ EventClient.prototype.disposeSubscriber = function()
  * @property {String} queueName - name of the queue, default to serviceName
  * @property {object} consul - Object for configuring consul related parameters.
  * @property {String} consul.host - Hostname of a consul server.
- * @property {String} consul.AMQPServiceName - Name of the enpoint for the AMQP tool in consul.
- * @property {String} consul.AMQPPasswordKey - Consul configuration key for AMQP tool authorisation. Might be null or false if not desired to be used.
+ * @property {String} consul.MqServiceName - Name of the enpoint for the AMQP tool in consul.
+ * @property {String} consul.MqPasswordKey - Consul configuration key for AMQP tool authorisation. Might be null or false if not desired to be used.
  * @property {object} context - Optional context object to automatically extend emitted messages.
  */
 EventClient.DefaultConfig = {
@@ -298,9 +298,9 @@ EventClient.DefaultConfig = {
     queueName: configService.serviceName,
     consul : {
         host : 'consul',
-        AMQPServiceName  : 'amqp',
-        AMQPUserKey: 'amqp/user',
-        AMQPPasswordKey : 'amqp/password'
+        MqServiceName  : 'amqp',
+        MqUserKey: 'amqp/user',
+        MqPasswordKey : 'amqp/password'
     },
     context : {
     }

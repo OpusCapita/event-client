@@ -7,7 +7,7 @@ First got to your local code directory and run:
 ```
 npm install ocbesbn-event-client
 ```
-To go with the minimum setup, you need to have access to a running **Consul server** to get your endpoint configuration for AMQP server. In addition, a **AMQP server** is required which has to be registered inside Consul. If AMQP password **authentication** is required, Consul has to provide the configuration key **{{your-service-name}}/amqp/password** where *{{your-service-name}}* is the least name of the directory your code runs in. If authentication is not used, you can set the **consul.AMQPPasswordKey** to null or false when creating a new instance of AMQPEvents.
+To go with the minimum setup, you need to have access to a running **Consul server** to get your endpoint configuration for AMQP server. In addition, a **AMQP server** is required which has to be registered inside Consul. If AMQP password **authentication** is required, Consul has to provide the configuration key **{{your-service-name}}/amqp/password** where *{{your-service-name}}* is the least name of the directory your code runs in. If authentication is not used, you can set the **consul.MqPasswordKey** to null or false when creating a new instance of AMQPEvents.
 
 If all this is set up, go to you code and add the following lines:
 
@@ -40,9 +40,9 @@ The default configuration object provides hints about what the module's standard
     queueName: configService.serviceName, // name of the service
     consul : {
         host : 'consul',
-        AMQPServiceName  : 'amqp',
-        AMQPUserKey: 'amqp/user',
-        AMQPPasswordKey : 'amqp/password'
+        MqServiceName  : 'amqp',
+        MqUserKey: 'amqp/user',
+        MqPasswordKey : 'amqp/password'
     },
     context : {
     }
