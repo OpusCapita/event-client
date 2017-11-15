@@ -13,6 +13,8 @@ dependencies:
 test:
     override:
         - sudo service mysql stop
+        - docker stop $(docker ps -aq)
+        - docker rm $(docker ps -aq)
         - docker-compose up -d
         - docker-compose run main npm run start
     post:
