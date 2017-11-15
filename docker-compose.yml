@@ -1,6 +1,6 @@
 version: '3'
 services:
-    event-client:
+    main:
         build: .
         volumes:
             - .:/home/node/event-client
