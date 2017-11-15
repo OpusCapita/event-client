@@ -18,6 +18,7 @@ describe('Main', () =>
         */
         it('Simple_Connection_With_NOACK', (done) =>
         {
+            let iteration = 0;
             const routingKey = 'test.NoACK';
 
             const publisherClient = new EventClient();
@@ -25,16 +26,22 @@ describe('Main', () =>
 
             subscriberClient.subscribe((msg) =>
             {
-                subscriberClient.unsubscribe(routingKey)
-                .then(() =>
+                iteration++;
+
+                if (iteration > 1 && iteration < 3)
                 {
-                    done();
-                })
-                .catch(done)
+                    subscriberClient.unsubscribe(routingKey)
+                    .then(() =>
+                    {
+                        done();
+                    })
+                    .catch(done)
+                }
             }, routingKey, true)
             .then(() =>
             {
                 publisherClient.emit(routingKey, {message: 'Test-NoACK-Value'});
+                publisherClient.emit(routingKey, {message: 'Test-NoACK-Value-1'});
             });
         });
 
