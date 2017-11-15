@@ -13,10 +13,8 @@ dependencies:
 test:
     override:
         - sudo service mysql stop
-        - docker stop $(docker ps -aq)
-        - docker rm $(docker ps -aq)
         - docker-compose up -d
-        - docker-compose run main npm run start
+        - docker-compose run main npm run test-raw
     post:
         - sudo mkdir $CIRCLE_TEST_REPORTS/junit
         - sudo cp test-results.xml $CIRCLE_TEST_REPORTS/junit
