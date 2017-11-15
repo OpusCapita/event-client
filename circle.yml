@@ -10,11 +10,6 @@ dependencies:
         pre:
           - echo -e "$NPM_USER\n$NPM_PASS\n$NPM_EMAIL" | npm login
 
-dependencies:
-    master:
-        pre:
-            - echo -e "$NPM_USERNAME\n$NPM_PASSWORD\n$NPM_EMAIL" | npm login
-
 test:
     override:
         - sudo service mysql stop
