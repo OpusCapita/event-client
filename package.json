@@ -7,7 +7,7 @@
     "start": "npm run test",
     "test": "npm run setup-consul ; npm run clean && ${NODE_PATH}/.bin/nyc ${NODE_PATH}/.bin/mocha --timeout 500000 -R mocha-junit-reporter",
     "setup-consul": "curl -X PUT -d ${RABBITMQ_USER} http://consul:8500/v1/kv/event-client/mq/user ; curl -X PUT -d ${RABBITMQ_PASS} http://consul:8500/v1/kv/event-client/mq/password",
-    "test-raw": "npm run setup-consul ; ${NODE_PATH}/.bin/nodemon --exec ${NODE_PATH}/.bin/mocha --timeout 500000",
+    "test-raw": "npm run setup-consul ; ${NODE_PATH}/.bin/mocha --timeout 500000",
     "clean": "${NODE_PATH}/.bin/rimraf coverage .nyc_output routes",
     "test-coverage": "npm run setup-consul ; ${NODE_PATH}/.bin/nyc --reporter=lcov ${NODE_PATH}/.bin/mocha --timeout 500000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
     "upload-coverage": "cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js"
