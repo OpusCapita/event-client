@@ -16,27 +16,27 @@ describe('Main', () =>
         * Simple connection with no acknowledgement
         * Test cases with no interest to acknowledge the queue
         */
-        // it('Simple_Connection_With_NOACK', (done) =>
-        // {
-        //     const routingKey = 'test.NoACK';
-        //
-        //     const publisherClient = new EventClient();
-        //     const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_NOACK'});
-        //
-        //     subscriberClient.subscribe((msg) =>
-        //     {
-        //         subscriberClient.unsubscribe(routingKey)
-        //         .then(() =>
-        //         {
-        //             done();
-        //         })
-        //         .catch(done)
-        //     }, routingKey, true)
-        //     .then(() =>
-        //     {
-        //         publisherClient.emit(routingKey, {message: 'Test-NoACK-Value'});
-        //     });
-        // });
+        it('Simple_Connection_With_NOACK', (done) =>
+        {
+            const routingKey = 'test.NoACK';
+
+            const publisherClient = new EventClient();
+            const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_NOACK'});
+
+            subscriberClient.subscribe((msg) =>
+            {
+                subscriberClient.unsubscribe(routingKey)
+                .then(() =>
+                {
+                    done();
+                })
+                .catch(done)
+            }, routingKey, true)
+            .then(() =>
+            {
+                publisherClient.emit(routingKey, {message: 'Test-NoACK-Value'});
+            });
+        });
 
         /**
         * Simple connection with acknowledgement
