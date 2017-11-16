@@ -260,6 +260,8 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
  */
 EventClient.prototype.unsubscribe = function(key)
 {
+    this.subscribers[key] = [];
+    
     return new Promise((resolve, reject) =>
     {
         this.channel.unbindQueue(this.config.queueName, this.exchangeName, key)
