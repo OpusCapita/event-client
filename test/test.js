@@ -244,6 +244,31 @@ describe('Main', () =>
             }
         });
 
+        // pattern test
+        it('Pattern_test', (done) =>
+        {
+            const queueName = "Pattern_test";
+            const subscriberClient = new EventClient({queueName: queueName});
+            const routingPattern = 'pattern.#';
+            const routingKey = 'pattern.test';
+
+            subscriberClient.subscribe((msg) =>
+            {
+                done();
+            }, routingPattern, true)
+            .then(() =>
+            {
+                return subscriberClient.subscribe((msg) =>
+                {
+                    done();
+                }, routingKey, true);
+            })
+            .then(() =>
+            {
+                publisherClient.emit(routingKey, {message: 'Test-pattern'});
+            })
+        });
+
         // dispose all approach
         it('Dispose_test', (done) =>
         {
