@@ -24,8 +24,7 @@ const Logger = require('ocbesbn-logger');
 var EventClient = function(config)
 {
     this.config = extend(true, { }, EventClient.DefaultConfig, config);
-    this.subscriber = null;
-    this.emitter = null;
+    this.subscribers = {};
     this.channel = null;
     this.exchangeName = 'Service_Client_Exchange';
     this.retryExchangeName = 'Retry_Service_Client_Exchange';
@@ -170,29 +169,54 @@ EventClient.prototype.ack = function(message)
  */
 EventClient.prototype.subscribe = function(callback, key, noAck)
 {
+    if (this.subscribers[key])
+    {
+        this.subscribers[key].push(callback);
+    }
+    else
+    {
+        this.subscribers[key] = [].concat(callback);
+    }
+
+    console.log('------>', this.config.queueName, this.subscribers[key]);
+
     const reQueue = (key, msg) =>
     {
-        this.emit(key, msg);
+        setTimeout(() =>
+        {
+            this.emit(key, msg);
+        }, 1000);
+
         this.logger.warn(`No return statement in callback to acknowledge message for key ${key}`);
     }
 
     const messageCallback = (msg, rawMsg) =>
     {
-        var result = callback(msg, rawMsg);
+        let routingKey = rawMsg.fields.routingKey;
 
-        if (!noAck && (typeof result == 'undefined' || !result.then))
+        if (this.subscribers[routingKey])
         {
-            reQueue(key, msg);
-        }
-        else if (result && result.catch)
-        {
-            result.catch(() =>
+            for (let i = 0; i < this.subscribers[routingKey].length; i++)
             {
-                reQueue(key, msg);
-            });
-        }
+                var result = this.subscribers[routingKey][i](msg, rawMsg);
 
-        return result;
+                if (!noAck && (typeof result == 'undefined' || !result.then))
+                {
+                    reQueue(key, msg);
+                }
+                else if (result && result.catch)
+                {
+                    result.catch(() =>
+                    {
+                        reQueue(key, msg);
+                    });
+                }
+            }
+        }
+        else
+        {
+            this.logger.info(`No Registered callbacks for the provided key ${key}`);
+        }
     }
 
     const bindQueue = () =>
@@ -204,28 +228,12 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         })
         .then(() =>
         {
-            // if (noAck)
-                return this.channel.consume(this.config.queueName, (msg) =>
-                {
-                    let message = this.config.parser(msg.content.toString());
-                    this.logger.info(`Recieved message %j for key '${key}' which doesn't require ack`, message, msg);
-                    return messageCallback(message, msg);
-                }, {noAck: true});
-
-            // return this.channel.consume(this.config.queueName, mqRequeue({
-            //     channel: this.channel,
-            //     consumerQueue: this.config.queueName,
-            //     failureQueue: this.config.queueName,
-            //     delay: (attempt) => {
-            //         this.logger.info(`Adding to failure queue '${key}' attempting for ${attempt}`);
-            //         return 1000;
-            //     },
-            //     handler: (msg) => {
-            //         let message = this.config.parser(msg.content.toString());
-            //         this.logger.info(`Recieved message %j for key '${key}'`, message, msg);
-            //         return messageCallback(message, msg);
-            //     }
-            // }));
+            return this.channel.consume(this.config.queueName, (msg) =>
+            {
+                let message = this.config.parser(msg.content.toString());
+                this.logger.info(`Recieved message %j for key '${key}' which doesn't require ack`, message, msg);
+                return messageCallback(message, msg);
+            }, {noAck: true});
         })
         .then(() =>
         {
@@ -285,6 +293,8 @@ EventClient.prototype.contextify = function(context)
  */
 EventClient.prototype.disposeSubscriber = function()
 {
+    this.subscribers = {};
+
     if (this.channel)
     {
         return this.channel.close()
