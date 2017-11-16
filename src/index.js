@@ -198,8 +198,8 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
                 consumerQueue: this.config.queueName,
                 failureQueue: this.config.queueName,
                 delay: (attempt) => {
-                    this.logger.info(`Adding to failure queue '${key}'`);
-                    return attempt * 1000;
+                    this.logger.info(`Adding to failure queue '${key}' attempting for ${attempt}`);
+                    return 1000;
                 },
                 handler: (msg) => {
                     let message = this.config.parser(msg.content.toString());
