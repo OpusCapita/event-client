@@ -90,7 +90,7 @@ var EventClient = function(config)
  * This method allows to emit an event/message
  * @param {String} key - routing key for the message
  * @param {Object} message - message to be communicated
- * @return {Boolean}
+ * @return {Promise}
  */
 EventClient.prototype.emit = function(key, message)
 {

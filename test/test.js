@@ -42,7 +42,10 @@ describe('Main', () =>
             }, routingKey, true)
             .then(() =>
             {
-                publisherClient.emit(routingKey, {message: 'Test-NoACK-Value'});
+                return publisherClient.emit(routingKey, {message: 'Test-NoACK-Value'});
+            })
+            .then(() =>
+            {
                 publisherClient.emit(routingKey, {message: 'Test-NoACK-Value-1'});
             });
         });
@@ -81,9 +84,12 @@ describe('Main', () =>
             }, routingKey)
             .then(() =>
             {
-                publisherClient.emit(routingKey, {message: 'Test-ACK-Value'});
+                return publisherClient.emit(routingKey, {message: 'Test-ACK-Value'});
+            })
+            .then(() =>
+            {
                 publisherClient.emit(routingKey, {message: 'Test-ACK-Value-1'});
-            });
+            })
         });
 
         /**
@@ -126,7 +132,7 @@ describe('Main', () =>
         it('Simple_Connection_With_Multiple_ACK', (done) =>
         {
             let iteration = 0;
-            const routingKey = 'test.Instances';
+            const routingKey = 'test.Instances.ACK';
 
             // const publisherClient = new EventClient();
             const subscriberClient1 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES_NACK'});
