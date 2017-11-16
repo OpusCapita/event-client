@@ -170,13 +170,26 @@ EventClient.prototype.ack = function(message)
  */
 EventClient.prototype.subscribe = function(callback, key, noAck)
 {
+    const reQueue = (key, msg) =>
+    {
+        this.emit(key, msg);
+        this.logger.warn(`No return statement in callback to acknowledge message for key ${key}`);
+    }
+
     const messageCallback = (msg, rawMsg) =>
     {
         var result = callback(msg, rawMsg);
 
         if (!noAck && (typeof result == 'undefined' || !result.then))
         {
-            return Promise.reject(new Error(`No return statement in callback to acknowledge message for key ${key}`));
+            reQueue(key, msg);
+        }
+        else if (result && result.catch)
+        {
+            result.catch(() =>
+            {
+                reQueue(key, msg);
+            });
         }
 
         return result;
@@ -191,22 +204,33 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         })
         .then(() =>
         {
-            this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
-
-            return this.channel.consume(this.config.queueName, mqRequeue({
-                channel: this.channel,
-                consumerQueue: this.config.queueName,
-                failureQueue: this.config.queueName,
-                delay: (attempt) => {
-                    this.logger.info(`Adding to failure queue '${key}' attempting for ${attempt}`);
-                    return 1000;
-                },
-                handler: (msg) => {
+            // if (noAck)
+                return this.channel.consume(this.config.queueName, (msg) =>
+                {
                     let message = this.config.parser(msg.content.toString());
-                    this.logger.info(`Recieved message %j for key '${key}'`, message, msg);
+                    this.logger.info(`Recieved message %j for key '${key}' which doesn't require ack`, message, msg);
                     return messageCallback(message, msg);
-                }
-            }));
+                }, {noAck: true});
+
+            // return this.channel.consume(this.config.queueName, mqRequeue({
+            //     channel: this.channel,
+            //     consumerQueue: this.config.queueName,
+            //     failureQueue: this.config.queueName,
+            //     delay: (attempt) => {
+            //         this.logger.info(`Adding to failure queue '${key}' attempting for ${attempt}`);
+            //         return 1000;
+            //     },
+            //     handler: (msg) => {
+            //         let message = this.config.parser(msg.content.toString());
+            //         this.logger.info(`Recieved message %j for key '${key}'`, message, msg);
+            //         return messageCallback(message, msg);
+            //     }
+            // }));
+        })
+        .then(() =>
+        {
+            this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
+            return Promise.resolve();
         })
     }
 

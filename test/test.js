@@ -90,6 +90,10 @@ describe('Main', () =>
             {
                 publisherClient.emit(routingKey, {message: 'Test-ACK-Value-1'});
             })
+            .catch((err) =>
+            {
+                console.log(err);
+            })
         });
 
         /**
@@ -165,7 +169,11 @@ describe('Main', () =>
             .then(() =>
             {
                 publisherClient.emit(routingKey, {message: 'Test-ACK-Value'});
-            });
+            })
+            .catch((err) =>
+            {
+                console.log(err);
+            })
         });
 
         /**
@@ -253,14 +261,16 @@ describe('Main', () =>
             subscriberClient.subscribe(callback.bind(this, 'Client0'), routingKey, true)
             .then(() =>
             {
-                subscriberClient.disposeSubscriber();
-
+                return subscriberClient.disposeSubscriber();
+            })
+            .then(() =>
+            {
                 const subscriberClient1 = new EventClient({queueName: queueName});
                 subscriberClient1.subscribe(callback.bind(this, 'Client1'), routingKey, true);
 
 
                 return publisherClient.emit(routingKey, {message: 'Test-ACK-Value'});
-            });
+            })
 
         });
 
