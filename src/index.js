@@ -178,8 +178,6 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         this.subscribers[key] = [].concat(callback);
     }
 
-    console.log('------>', this.config.queueName, this.subscribers[key]);
-
     const reQueue = (key, msg) =>
     {
         setTimeout(() =>
