@@ -63,7 +63,7 @@ describe('Main', () =>
             {
                 iteration++;
 
-                if (iteration > 2)
+                if (iteration == 2)
                 {
                     subscriberClient.unsubscribe(routingKey)
                     .then(() =>
