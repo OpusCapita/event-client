@@ -111,7 +111,7 @@ EventClient.prototype.emit = function(key, message)
 
         if (emitted)
         {
-            this.logger.info(`Emitted event with key '${key}' and message %j`, message);
+            this.logger.info(`Emitted event via Exchange ${this.exchangeName} and Key '${key}' and message %j`, message);
             return Promise.resolve();
         }
 
@@ -193,7 +193,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         {
             this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
 
-            this.channel.consume(this.config.queueName, mqRequeue({
+            return this.channel.consume(this.config.queueName, mqRequeue({
                 channel: this.channel,
                 consumerQueue: this.config.queueName,
                 failureQueue: this.config.queueName,
@@ -207,8 +207,6 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
                     return messageCallback(message, msg);
                 }
             }));
-
-            return Promise.resolve();
         })
     }
 

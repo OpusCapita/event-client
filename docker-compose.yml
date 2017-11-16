@@ -13,12 +13,12 @@ services:
         command: npm run test-raw
 
     rabbitmq:
-        image: rabbitmq
+        image: rabbitmq:3-management
         ports:
             - '4369:4369'
             - '5671:5671'
             - '5672:5672'
-            - '25672:25672'
+            - '15672:15672'
         environment:
             RABBITMQ_DEFAULT_USER: $RABBITMQ_USER
             RABBITMQ_DEFAULT_PASS: $RABBITMQ_PASS
