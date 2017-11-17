@@ -13,7 +13,7 @@ services:
         command: npm run test-raw
 
     rabbitmq:
-        image: circleci/rabbitmq:3.6.6
+        image: rabbitmq:3-management
         ports:
             - '4369:4369'
             - '5671:5671'
