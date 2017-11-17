@@ -18,37 +18,37 @@ describe('Main', () =>
         * Simple connection with no acknowledgement
         * Test cases with no interest to acknowledge the queue
         */
-        // it('Simple_Connection_With_NOACK', (done) =>
-        // {
-        //     let iteration = 0;
-        //     const routingKey = 'test.NoACK';
-        //
-        //     // const publisherClient = new EventClient();
-        //     const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_NOACK'});
-        //
-        //     subscriberClient.subscribe((msg) =>
-        //     {
-        //         iteration++;
-        //
-        //         if (iteration == 2)
-        //         {
-        //             subscriberClient.unsubscribe(routingKey)
-        //             .then(() =>
-        //             {
-        //                 done();
-        //             })
-        //             .catch(done)
-        //         }
-        //     }, routingKey, true)
-        //     .then(() =>
-        //     {
-        //         return publisherClient.emit(routingKey, {message: 'Test-NoACK-Value'});
-        //     })
-        //     .then(() =>
-        //     {
-        //         publisherClient.emit(routingKey, {message: 'Test-NoACK-Value-1'});
-        //     });
-        // });
+        it('Simple_Connection_With_NOACK', (done) =>
+        {
+            let iteration = 0;
+            const routingKey = 'test.NoACK';
+
+            // const publisherClient = new EventClient();
+            const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_NOACK'});
+
+            subscriberClient.subscribe((msg) =>
+            {
+                iteration++;
+
+                if (iteration == 2)
+                {
+                    subscriberClient.unsubscribe(routingKey)
+                    .then(() =>
+                    {
+                        done();
+                    })
+                    .catch(done)
+                }
+            }, routingKey, true)
+            .then(() =>
+            {
+                return publisherClient.emit(routingKey, {message: 'Test-NoACK-Value'});
+            })
+            .then(() =>
+            {
+                publisherClient.emit(routingKey, {message: 'Test-NoACK-Value-1'});
+            });
+        });
 
         /**
         * Simple connection with acknowledgement
