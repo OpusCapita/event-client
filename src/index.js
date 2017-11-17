@@ -249,8 +249,9 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
             {
                 resolve();
             })
-            .catch(() =>
+            .catch((err) =>
             {
+                this.logger.warn(`Failed on subscription`, err);
                 reject();
             });
         });
