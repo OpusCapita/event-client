@@ -206,35 +206,54 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
 
     const bindQueue = () =>
     {
-        return this.channel.assertQueue(this.config.queueName)
-        .then(() =>
+        return new Promise((resolve, reject) =>
         {
-            return this.channel.bindQueue(this.config.queueName, this.exchangeName, key)
-        })
-        .then(() =>
-        {
-            return this.channel.consume(this.config.queueName, (msg) =>
+            this.channel.assertQueue(this.config.queueName)
+            .then(() =>
             {
-                let message = this.config.parser(msg.content.toString());
-                this.logger.info(`Recieved message %j for key '${key}' which doesn't require ack`, message, msg);
-                return messageCallback(message, msg);
-            }, {noAck: true});
-        })
-        .then(() =>
-        {
-            this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
-            return Promise.resolve();
-        })
+                return this.channel.bindQueue(this.config.queueName, this.exchangeName, key)
+            })
+            .then(() =>
+            {
+                return this.channel.consume(this.config.queueName, (msg) =>
+                {
+                    let message = this.config.parser(msg.content.toString());
+                    this.logger.info(`Recieved message %j for key '${key}' which doesn't require ack`, message, msg);
+                    return messageCallback(message, msg);
+                }, {noAck: true});
+            })
+            .then((consumer) =>
+            {
+                this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`, consumer);
+                resolve();
+            })
+            .catch((err) =>
+            {
+                this.logger.warn(`Failed on subscription`, err);
+                reject(err);
+            });
+        });
     }
 
     if (!this.channel)
     {
-        return this._getNewChannel()
-        .then((mqChannel) =>
+        return new Promise((resolve, reject) =>
         {
-            this.channel = mqChannel;
-            return bindQueue();
-        })
+            this._getNewChannel()
+            .then((mqChannel) =>
+            {
+                this.channel = mqChannel;
+                return bindQueue();
+            })
+            .then(() =>
+            {
+                resolve();
+            })
+            .catch(() =>
+            {
+                reject();
+            });
+        });
     }
 
     return bindQueue();
