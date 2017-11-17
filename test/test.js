@@ -46,7 +46,7 @@ describe('Main', () =>
             })
             .then(() =>
             {
-                publisherClient.emit(routingKey, {message: 'Test-NoACK-Value-1'});
+                return publisherClient.emit(routingKey, {message: 'Test-NoACK-Value-1'});
             });
         });
 
