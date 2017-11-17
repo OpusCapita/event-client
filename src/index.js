@@ -124,12 +124,6 @@ EventClient.prototype.emit = function(key, message)
         {
             this.logger.info(`mq connection established`);
             this.channel = mqChannel;
-
-            this.channel.on('error', (channelError) =>
-            {
-                console.log('Channel Error', channelError);
-            });
-
             return emitEvent();
         })
         .catch((err) =>
@@ -175,7 +169,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
 
         if (this.subscribers[routingKey])
         {
-            console.log('------->', routingKey, this.subscribers[routingKey]);
+            console.log('------->', routingKey, this.subscribers[routingKey], this.channel.consumers, this.channel.ch);
 
             for (let i = 0; i < this.subscribers[routingKey].length; i++)
             {
