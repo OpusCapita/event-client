@@ -169,6 +169,8 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
 
         if (this.subscribers[routingKey])
         {
+            console.log('------->', routingKey, JSON.stringify(this.subscribers[routingKey]));
+
             for (let i = 0; i < this.subscribers[routingKey].length; i++)
             {
                 let ack = this.subscribers[routingKey][i].noAck;
