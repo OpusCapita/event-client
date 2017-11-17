@@ -68,6 +68,17 @@ var EventClient = function(config)
         })
         .then((ch) =>
         {
+            // testing
+            ch.on('return', (msg) =>
+            {
+                console.log('****Failed to route message****', msg);
+            });
+
+            ch.on('drain', () =>
+            {
+                console.log('****Channel is Drained****');
+            })
+            // testing
             logger.info(`Channel created..`);
             return Promise.all([ch, ch.assertExchange(exchangeName, 'topic'), ch.assertExchange(retryExchangeName, 'direct')])
         })
@@ -105,7 +116,7 @@ EventClient.prototype.emit = function(key, message)
         else
             messageString = this.config.serializer(message);
 
-        const emitted = this.channel.publish(this.exchangeName, key, Buffer.from(messageString));
+        const emitted = this.channel.publish(this.exchangeName, key, Buffer.from(messageString), {mandatory: true});
 
         if (emitted)
         {
