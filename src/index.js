@@ -124,6 +124,12 @@ EventClient.prototype.emit = function(key, message)
         {
             this.logger.info(`mq connection established`);
             this.channel = mqChannel;
+
+            this.channel.on('error', (channelError) =>
+            {
+                console.log('Channel Error', channelError);
+            });
+
             return emitEvent();
         })
         .catch((err) =>
