@@ -71,12 +71,17 @@ var EventClient = function(config)
             // testing
             ch.on('return', (msg) =>
             {
-                console.log('****Failed to route message****', msg);
+                console.log('Failed to route message....', msg);
             });
 
             ch.on('drain', () =>
             {
-                console.log('****Channel is Drained****');
+                console.log('Channel is Drained....');
+            })
+
+            ch.on('close', () =>
+            {
+                console.log('Channel closed....');
             })
             // testing
             logger.info(`Channel created..`);
@@ -130,17 +135,25 @@ EventClient.prototype.emit = function(key, message)
 
     if (!this.channel)
     {
-        return this._getNewChannel(this.config)
-        .then((mqChannel) =>
+        return new Promise((resolve, reject) =>
         {
-            this.logger.info(`mq connection established`);
-            this.channel = mqChannel;
-            return emitEvent();
-        })
-        .catch((err) =>
-        {
-            this.logger.error(err);
-        })
+            this._getNewChannel(this.config)
+            .then((mqChannel) =>
+            {
+                this.logger.info(`mq connection established`);
+                this.channel = mqChannel;
+                return emitEvent();
+            })
+            .then(() =>
+            {
+                resolve();
+            })
+            .catch((err) =>
+            {
+                this.logger.error(err);
+                reject(err);
+            })
+        });
     }
 
     return emitEvent();
@@ -164,11 +177,11 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         this.subscribers[key] = [].concat({callback: callback, noAck: noAck});
     }
 
-    const reQueue = (key, msg) =>
+    const reQueue = (routingKey, msg) =>
     {
         setTimeout(() =>
         {
-            this.emit(key, msg);
+            this.emit(routingKey, msg);
         }, 1000);
 
         this.logger.warn(`No return statement in callback to acknowledge message for key ${key}`);
