@@ -5,7 +5,6 @@ const configService = require('ocbesbn-config');
 const Promise = require('bluebird');
 const retry = require('bluebird-retry');
 const amqp = require('amqplib');
-const mqRequeue = require('amqplib-retry')
 const Logger = require('ocbesbn-logger');
 
 /**
@@ -137,30 +136,6 @@ EventClient.prototype.emit = function(key, message)
 }
 
 /**
- * This method helps to acknowledge the message
- * @param {Object} message - the recieved message
- */
-EventClient.prototype.ack = function(message)
-{
-    const acknowledge = () =>
-    {
-        return this.channel.ack(message)
-    }
-
-    if (!this.channel)
-    {
-        return _getNewChannel(this.config)
-        .then((mqChannel) =>
-        {
-            this.channel = mqChannel;
-            return acknowledge();
-        })
-    }
-
-    return acknowledge();
-}
-
-/**
  * This method helps to subscribe for an event using routing key
  * @param {Function} callback - callback function
  * @param {String} key - routing key for the message
@@ -171,11 +146,11 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
 {
     if (this.subscribers[key])
     {
-        this.subscribers[key].push(callback);
+        this.subscribers[key].push({callback: callback, noAck: noAck});
     }
     else
     {
-        this.subscribers[key] = [].concat(callback);
+        this.subscribers[key] = [].concat({callback: callback, noAck: noAck});
     }
 
     const reQueue = (key, msg) =>
@@ -196,9 +171,10 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         {
             for (let i = 0; i < this.subscribers[routingKey].length; i++)
             {
-                var result = this.subscribers[routingKey][i](msg, rawMsg);
+                let ack = this.subscribers[routingKey][i].noAck;
+                let result = this.subscribers[routingKey][i].callback(msg, rawMsg);
 
-                if (!noAck && (typeof result == 'undefined' || !result.then))
+                if (!ack && (typeof result == 'undefined' || !result.then))
                 {
                     reQueue(key, msg);
                 }
