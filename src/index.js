@@ -125,15 +125,6 @@ EventClient.prototype.emit = function(key, message)
             this.logger.info(`mq connection established`);
             this.pubChannel = mqChannel;
 
-            this.pubChannel.on('return', (msg) =>
-            {
-                let routingKey = msg.fields.routingKey;
-                let message = this.config.parser(msg.content.toString());
-                this.logger.info(`Failed to route message %j key ${routingKey}`, message);
-                this.reQueue(routingKey, message);
-            });
-
-
             this.pubChannel.on('cancelled', function(queue, callback, options)
             {
                 // When the consumer below gets cancelled by Rabbit MQ
