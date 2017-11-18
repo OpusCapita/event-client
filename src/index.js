@@ -159,7 +159,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
 
     const bindQueue = () =>
     {
-        return this.subChannel.assertQueue(this.config.queueName)
+        return this.subChannel.assertQueue(this.config.queueName, {durable: true})
         .then(() =>
         {
             return this.subChannel.bindQueue(this.config.queueName, this.exchangeName, key)
