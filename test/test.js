@@ -1,6 +1,8 @@
 const EventClient = require('../src');
 const server = require('ocbesbn-web-init');
 
+const publisherClient = new EventClient();
+
 describe('Main', () =>
 {
     describe('#init()', () =>
@@ -21,7 +23,7 @@ describe('Main', () =>
             let iteration = 0;
             const routingKey = 'test.NoACK';
 
-            const publisherClient = new EventClient();
+            // const publisherClient = new EventClient();
             const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_NOACK'});
 
             subscriberClient.subscribe((msg) =>
@@ -40,8 +42,11 @@ describe('Main', () =>
             }, routingKey, true)
             .then(() =>
             {
-                publisherClient.emit(routingKey, {message: 'Test-NoACK-Value'});
-                publisherClient.emit(routingKey, {message: 'Test-NoACK-Value-1'});
+                return publisherClient.emit(routingKey, {message: 'Test-NoACK-Value'});
+            })
+            .then(() =>
+            {
+                return publisherClient.emit(routingKey, {message: 'Test-NoACK-Value-1'});
             });
         });
 
@@ -54,14 +59,14 @@ describe('Main', () =>
             let iteration = 0;
             const routingKey = 'test.ACK';
 
-            const publisherClient = new EventClient();
+            // const publisherClient = new EventClient();
             const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_ACK'});
 
             subscriberClient.subscribe((msg, rawMsg) =>
             {
                 iteration++;
 
-                if (iteration == 3)
+                if (iteration == 2)
                 {
                     subscriberClient.unsubscribe(routingKey)
                     .then(() =>
@@ -79,9 +84,15 @@ describe('Main', () =>
             }, routingKey)
             .then(() =>
             {
-                publisherClient.emit(routingKey, {message: 'Test-ACK-Value'});
-                publisherClient.emit(routingKey, {message: 'Test-ACK-Value-1'});
-            });
+                return Promise.all([
+                    publisherClient.emit(routingKey, {message: 'Test-ACK-Value'}),
+                    publisherClient.emit(routingKey, {message: 'Test-ACK-Value-1'})
+                ]);
+            })
+            .catch((err) =>
+            {
+                console.log(err);
+            })
         });
 
         /**
@@ -94,7 +105,7 @@ describe('Main', () =>
             let iteration = 0;
             const routingKey = 'test.Instances';
 
-            const publisherClient = new EventClient();
+            // const publisherClient = new EventClient();
             const subscriberClient1 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES'});
             const subscriberClient2 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES'});
 
@@ -124,9 +135,9 @@ describe('Main', () =>
         it('Simple_Connection_With_Multiple_ACK', (done) =>
         {
             let iteration = 0;
-            const routingKey = 'test.Instances';
+            const routingKey = 'test.Instances.ACK';
 
-            const publisherClient = new EventClient();
+            // const publisherClient = new EventClient();
             const subscriberClient1 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES_NACK'});
             const subscriberClient2 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES_NACK'});
 
@@ -157,7 +168,11 @@ describe('Main', () =>
             .then(() =>
             {
                 publisherClient.emit(routingKey, {message: 'Test-ACK-Value'});
-            });
+            })
+            .catch((err) =>
+            {
+                console.log(err);
+            })
         });
 
         /**
@@ -166,7 +181,7 @@ describe('Main', () =>
         */
         it('Shutdown_On_Subscription_And_restart', (done) =>
         {
-            const publisherClient = new EventClient();
+            // const publisherClient = new EventClient();
             const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_Shutdown_Restart'});
             const routingKey = 'test.shutdown';
 
@@ -228,10 +243,35 @@ describe('Main', () =>
             }
         });
 
+        // pattern test
+        it('Pattern_test', (done) =>
+        {
+            const queueName = "Pattern_test";
+            const subscriberClient = new EventClient({queueName: queueName});
+            const routingPattern = 'pattern.#';
+            const routingKey = 'pattern.test';
+
+            subscriberClient.subscribe((msg) =>
+            {
+                done();
+            }, routingPattern, true)
+            .then(() =>
+            {
+                return subscriberClient.subscribe((msg) =>
+                {
+                    done();
+                }, routingKey, true);
+            })
+            .then(() =>
+            {
+                publisherClient.emit(routingKey, {message: 'Test-pattern'});
+            })
+        });
+
         // dispose all approach
         it('Dispose_test', (done) =>
         {
-            const publisherClient = new EventClient();
+            // const publisherClient = new EventClient();
             const queueName = "Simple_Connection_To_Test_Dispose";
             const subscriberClient = new EventClient({queueName: queueName});
             const routingKey = 'test.dispose';
@@ -245,14 +285,16 @@ describe('Main', () =>
             subscriberClient.subscribe(callback.bind(this, 'Client0'), routingKey, true)
             .then(() =>
             {
-                subscriberClient.disposeSubscriber();
-
+                return subscriberClient.disposeSubscriber();
+            })
+            .then(() =>
+            {
                 const subscriberClient1 = new EventClient({queueName: queueName});
                 subscriberClient1.subscribe(callback.bind(this, 'Client1'), routingKey, true);
 
 
                 return publisherClient.emit(routingKey, {message: 'Test-ACK-Value'});
-            });
+            })
 
         });
 

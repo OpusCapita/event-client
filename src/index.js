@@ -5,7 +5,6 @@ const configService = require('ocbesbn-config');
 const Promise = require('bluebird');
 const retry = require('bluebird-retry');
 const amqp = require('amqplib');
-const mqRequeue = require('amqplib-retry')
 const Logger = require('ocbesbn-logger');
 
 /**
@@ -136,6 +135,15 @@ EventClient.prototype.emit = function(key, message)
     return emitEvent();
 }
 
+EventClient.prototype.reQueue = function(key, msg)
+{
+    setTimeout(() =>
+    {
+        this.logger.info('Requeuing message %j for key %s', msg, key)
+        this.emit(key, msg);
+    }, 1000);
+}
+
 /**
  * This method helps to subscribe for an event using routing key
  * @param {Function} callback - callback function
@@ -151,7 +159,16 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
 
         if (!noAck && (typeof result == 'undefined' || !result.then))
         {
-            return Promise.reject(new Error(`No return statement in callback to acknowledge message for key ${key}`));
+            this.logger.warn(`Failed on acknowledgement by consumer function for key %s`, key);
+            this.reQueue(key, msg);
+        }
+        else if (result && result.catch)
+        {
+            result.catch((err) =>
+            {
+                this.logger.warn(`Failed on acknowledgement by consumer function for key %s with error %j`, key, err);
+                this.reQueue(key, msg);
+            });
         }
 
         return result;
@@ -168,23 +185,17 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         {
             this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
 
-            this.subChannel.consume(this.config.queueName, mqRequeue({
-                channel: this.subChannel,
-                consumerQueue: this.config.queueName,
-                failureQueue: this.config.queueName,
-                delay: (attempt) => {
-                    this.logger.info(`Adding to failure queue '${key}'`);
-                    return attempt * 1000;
-                },
-                handler: (msg) => {
+            return this.subChannel.consume(this.config.queueName, (msg) =>
+                {
                     let message = this.config.parser(msg.content.toString());
-                    this.logger.info(`Recieved message %j for key '${key}'`, message, msg);
+                    this.logger.info(`Recieved message %j for key '${key}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
                     return messageCallback(message, msg);
-                }
-            }));
-
-            return Promise.resolve();
+                }, {noAck: true});
         })
+        .then((consumer) =>
+        {
+            this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`, consumer);
+        });
     }
 
     if (!this.subChannel)
@@ -193,8 +204,17 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         .then((mqChannel) =>
         {
             this.subChannel = mqChannel;
+
+            this.subChannel.on('return', (msg) =>
+            {
+                let routingKey = msg.fields.routingKey;
+                let message = this.config.parser(msg.content.toString());
+                console.log(`Failed to route message %j key ${routingKey}`, message);
+                this.reQueue(routingKey, message);
+            });
+
             return bindQueue();
-        })
+        });
     }
 
     return bindQueue();
