@@ -57,7 +57,8 @@ var EventClient = function(config)
                     hostname: props.endpoint.host,
                     port: props.endpoint.port,
                     username: props.username,
-                    password: props.password
+                    password: props.password,
+                    heartbeat: 60
                 })
             }, {max_tries: 15, interval: 500});
         })
@@ -124,19 +125,6 @@ EventClient.prototype.emit = function(key, message)
         {
             this.logger.info(`mq connection established`);
             this.pubChannel = mqChannel;
-
-            this.pubChannel.on('cancelled', function(queue, callback, options)
-            {
-                // When the consumer below gets cancelled by Rabbit MQ
-                console.log('----PUB cancelled------', queue, callback.name, options);
-            });
-
-            this.pubChannel.on('error', function(err)
-            {
-                // When the consumer below gets cancelled by Rabbit MQ
-                console.log('----PUB Error------', err);
-            });
-
             return emitEvent();
         })
         .catch((err) =>
@@ -217,19 +205,6 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         .then((mqChannel) =>
         {
             this.subChannel = mqChannel;
-
-            this.subChannel.on('cancelled', function(queue, callback, options)
-            {
-                // When the consumer below gets cancelled by Rabbit MQ
-                console.log('----cancelled------', queue, callback.name, options);
-            });
-
-            this.subChannel.on('error', function(err)
-            {
-                // When the consumer below gets cancelled by Rabbit MQ
-                console.log('----Error------', err);
-            });
-
             return bindQueue();
         });
     }
