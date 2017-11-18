@@ -213,6 +213,12 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         .then((mqChannel) =>
         {
             this.subChannel = mqChannel;
+
+            this.subChannel.on('cancelled', function(queue, callback, options){
+                // When the consumer below gets cancelled by Rabbit MQ
+                console.log(queue, callback.name, options);
+            });
+
             return bindQueue();
         });
     }
