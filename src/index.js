@@ -24,7 +24,7 @@ var EventClient = function(config)
 {
     this.config = extend(true, { }, EventClient.DefaultConfig, config);
     this.subChannel = null;
-    this.pubChannel = null;
+    this. = null;
     this.exchangeName = 'Service_Client_Exchange';
     this.retryExchangeName = 'Retry_Service_Client_Exchange';
     this.logger = new Logger({ context : { serviceName : configService.serviceName } });
@@ -131,6 +131,19 @@ EventClient.prototype.emit = function(key, message)
                 let message = this.config.parser(msg.content.toString());
                 this.logger.info(`Failed to route message %j key ${routingKey}`, message);
                 this.reQueue(routingKey, message);
+            });
+
+
+            this.pubChannel.on('cancelled', function(queue, callback, options)
+            {
+                // When the consumer below gets cancelled by Rabbit MQ
+                console.log('----PUB cancelled------', queue, callback.name, options);
+            });
+
+            this.pubChannel.on('error', function(err)
+            {
+                // When the consumer below gets cancelled by Rabbit MQ
+                console.log('----PUB Error------', err);
             });
 
             return emitEvent();
