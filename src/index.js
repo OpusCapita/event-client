@@ -159,6 +159,14 @@ EventClient.prototype.emit = function(key, message)
     return emitEvent();
 }
 
+EventClient.prototype.reQueue = function(routingKey, msg)
+{
+    setTimeout(() =>
+    {
+        this.emit(routingKey, msg);
+    }, 1000);
+}
+
 /**
  * This method helps to subscribe for an event using routing key
  * @param {Function} callback - callback function
@@ -177,16 +185,6 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         this.subscribers[key] = [].concat({callback: callback, noAck: noAck});
     }
 
-    const reQueue = (routingKey, msg) =>
-    {
-        setTimeout(() =>
-        {
-            this.emit(routingKey, msg);
-        }, 1000);
-
-        this.logger.warn(`No return statement in callback to acknowledge message for key ${key}`);
-    }
-
     const messageCallback = (msg, rawMsg) =>
     {
         let routingKey = key;
@@ -200,13 +198,15 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
 
                 if (!ack && (typeof result == 'undefined' || !result.then))
                 {
-                    reQueue(key, msg);
+                    this.logger.warn(`No return statement in callback to acknowledge message for key ${key}`);
+                    this.reQueue(key, msg);
                 }
                 else if (result && result.catch)
                 {
                     result.catch(() =>
                     {
-                        reQueue(key, msg);
+                        this.logger.warn(`No return statement in callback to acknowledge message for key ${key}`);
+                        this.reQueue(key, msg);
                     });
                 }
             }
