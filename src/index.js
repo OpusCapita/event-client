@@ -24,9 +24,8 @@ const Logger = require('ocbesbn-logger');
 var EventClient = function(config)
 {
     this.config = extend(true, { }, EventClient.DefaultConfig, config);
-    this.subscriber = null;
-    this.emitter = null;
-    this.channel = null;
+    this.subChannel = null;
+    this.pubChannel = null;
     this.exchangeName = 'Service_Client_Exchange';
     this.retryExchangeName = 'Retry_Service_Client_Exchange';
     this.logger = new Logger({ context : { serviceName : configService.serviceName } });
@@ -107,7 +106,7 @@ EventClient.prototype.emit = function(key, message)
         else
             messageString = this.config.serializer(message);
 
-        const emitted = this.channel.publish(this.exchangeName, key, Buffer.from(messageString));
+        const emitted = this.pubChannel.publish(this.exchangeName, key, Buffer.from(messageString));
 
         if (emitted)
         {
@@ -119,13 +118,13 @@ EventClient.prototype.emit = function(key, message)
         return Promise.reject(new Error('Failed to Emit to Queue'));
     }
 
-    if (!this.channel)
+    if (!this.pubChannel)
     {
         return this._getNewChannel(this.config)
         .then((mqChannel) =>
         {
             this.logger.info(`mq connection established`);
-            this.channel = mqChannel;
+            this.pubChannel = mqChannel;
             return emitEvent();
         })
         .catch((err) =>
@@ -135,30 +134,6 @@ EventClient.prototype.emit = function(key, message)
     }
 
     return emitEvent();
-}
-
-/**
- * This method helps to acknowledge the message
- * @param {Object} message - the recieved message
- */
-EventClient.prototype.ack = function(message)
-{
-    const acknowledge = () =>
-    {
-        return this.channel.ack(message)
-    }
-
-    if (!this.channel)
-    {
-        return _getNewChannel(this.config)
-        .then((mqChannel) =>
-        {
-            this.channel = mqChannel;
-            return acknowledge();
-        })
-    }
-
-    return acknowledge();
 }
 
 /**
@@ -184,17 +159,17 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
 
     const bindQueue = () =>
     {
-        return this.channel.assertQueue(this.config.queueName)
+        return this.subChannel.assertQueue(this.config.queueName)
         .then(() =>
         {
-            return this.channel.bindQueue(this.config.queueName, this.exchangeName, key)
+            return this.subChannel.bindQueue(this.config.queueName, this.exchangeName, key)
         })
         .then(() =>
         {
             this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
 
-            this.channel.consume(this.config.queueName, mqRequeue({
-                channel: this.channel,
+            this.subChannel.consume(this.config.queueName, mqRequeue({
+                channel: this.subChannel,
                 consumerQueue: this.config.queueName,
                 failureQueue: this.config.queueName,
                 delay: (attempt) => {
@@ -212,12 +187,12 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         })
     }
 
-    if (!this.channel)
+    if (!this.subChannel)
     {
         return this._getNewChannel()
         .then((mqChannel) =>
         {
-            this.channel = mqChannel;
+            this.subChannel = mqChannel;
             return bindQueue();
         })
     }
@@ -234,7 +209,7 @@ EventClient.prototype.unsubscribe = function(key)
 {
     return new Promise((resolve, reject) =>
     {
-        this.channel.unbindQueue(this.config.queueName, this.exchangeName, key)
+        this.subChannel.unbindQueue(this.config.queueName, this.exchangeName, key)
         .then(() =>
         {
             this.logger.info(`Successfully unsubscribed pattern/key '${key}' for queue '${this.config.queueName}'`);
@@ -263,9 +238,9 @@ EventClient.prototype.contextify = function(context)
  */
 EventClient.prototype.disposeSubscriber = function()
 {
-    if (this.channel)
+    if (this.subChannel)
     {
-        return this.channel.close()
+        return this.subChannel.close()
         .then(() =>
         {
             this.logger.info('Disposed subscribed keys and channel connection...');
