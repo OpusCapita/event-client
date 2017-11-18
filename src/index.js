@@ -195,11 +195,11 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
             this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
 
             return this.subChannel.consume(this.config.queueName, (msg) =>
-                {
-                    let message = this.config.parser(msg.content.toString());
-                    this.logger.info(`Recieved message %j for key '${key}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
-                    return messageCallback(message, msg);
-                }, {noAck: true});
+            {
+                let message = this.config.parser(msg.content.toString());
+                this.logger.info(`Recieved message %j for key '${key}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
+                return messageCallback(message, msg);
+            }, {noAck: true});
         })
         .then((consumer) =>
         {
