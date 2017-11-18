@@ -28,7 +28,7 @@ describe('Main', () =>
             {
                 iteration++;
 
-                if (iteration > 1 && iteration < 3)
+                if (iteration == 2)
                 {
                     subscriberClient.unsubscribe(routingKey)
                     .then(() =>
@@ -61,7 +61,7 @@ describe('Main', () =>
             {
                 iteration++;
 
-                if (iteration > 2)
+                if (iteration == 3)
                 {
                     subscriberClient.unsubscribe(routingKey)
                     .then(() =>
