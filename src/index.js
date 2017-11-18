@@ -24,7 +24,7 @@ var EventClient = function(config)
 {
     this.config = extend(true, { }, EventClient.DefaultConfig, config);
     this.subChannel = null;
-    this. = null;
+    this.pubChannel = null;
     this.exchangeName = 'Service_Client_Exchange';
     this.retryExchangeName = 'Retry_Service_Client_Exchange';
     this.logger = new Logger({ context : { serviceName : configService.serviceName } });
