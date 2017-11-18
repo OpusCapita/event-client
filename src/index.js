@@ -124,6 +124,15 @@ EventClient.prototype.emit = function(key, message)
         {
             this.logger.info(`mq connection established`);
             this.pubChannel = mqChannel;
+
+            this.pubChannel.on('return', (msg) =>
+            {
+                let routingKey = msg.fields.routingKey;
+                let message = this.config.parser(msg.content.toString());
+                this.logger.info(`Failed to route message %j key ${routingKey}`, message);
+                this.reQueue(routingKey, message);
+            });
+
             return emitEvent();
         })
         .catch((err) =>
@@ -204,15 +213,6 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         .then((mqChannel) =>
         {
             this.subChannel = mqChannel;
-
-            this.subChannel.on('return', (msg) =>
-            {
-                let routingKey = msg.fields.routingKey;
-                let message = this.config.parser(msg.content.toString());
-                console.log(`Failed to route message %j key ${routingKey}`, message);
-                this.reQueue(routingKey, message);
-            });
-
             return bindQueue();
         });
     }
