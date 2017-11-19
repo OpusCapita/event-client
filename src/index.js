@@ -179,47 +179,50 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
     {
         var result = callback(msg, rawMsg);
 
-        if (!noAck && (typeof result == 'undefined' || !result.then))
+        if (!noAck)
         {
-            this.logger.warn(`Failed on acknowledgement by consumer function for key %s`, key);
-            this.reQueue(key, msg);
-        }
-        else if (result && result.catch)
-        {
-            result.catch((err) =>
+            if (!result)
             {
-                this.logger.warn(`Failed on acknowledgement by consumer function for key %s with error %j`, key, err);
+                this.logger.warn(`Failed on acknowledgement by consumer function for key %s`, key);
                 this.reQueue(key, msg);
-            });
+            }
+            else if (result && result.catch)
+            {
+                result.catch((err) =>
+                {
+                    this.logger.warn(`Failed on acknowledgement by consumer function for key %s with error %j`, key, err);
+                    this.reQueue(key, msg);
+                })
+            }
         }
     }
 
     // testing
     const testQueue = () =>
     {
-        // return Promise.resolve();
-        const testQueueName = "testQueue"
-        return this.subChannel.assertQueue('testQueue', {durable: true})
-        .then(() =>
-        {
-            return this.subChannel.bindQueue(testQueueName, this.exchangeName, key)
-        })
-        .then(() =>
-        {
-            return this.subChannel.consume(testQueueName, (msg) =>
-            {
-                let message = this.config.parser(msg.content.toString());
-                this.logger.info(`***TESTRecieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
-            })
-        })
-        .then((consumer) =>
-        {
-            this.logger.info(`Subscribed to Key '${key}' and queue '${testQueueName}'`, consumer);
-        })
-        .catch((err) =>
-        {
-            this.logger.warn(err);
-        })
+        return Promise.resolve();
+        // const testQueueName = "testQueue"
+        // return this.subChannel.assertQueue('testQueue', {durable: true})
+        // .then(() =>
+        // {
+        //     return this.subChannel.bindQueue(testQueueName, this.exchangeName, key)
+        // })
+        // .then(() =>
+        // {
+        //     return this.subChannel.consume(testQueueName, (msg) =>
+        //     {
+        //         let message = this.config.parser(msg.content.toString());
+        //         this.logger.info(`***TESTRecieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
+        //     })
+        // })
+        // .then((consumer) =>
+        // {
+        //     this.logger.info(`Subscribed to Key '${key}' and queue '${testQueueName}'`, consumer);
+        // })
+        // .catch((err) =>
+        // {
+        //     this.logger.warn(err);
+        // })
     }
     // testing
 
@@ -235,7 +238,6 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
             return this.subChannel.consume(this.config.queueName, (msg) =>
             {
                 let message = this.config.parser(msg.content.toString());
-                this.logger.info(`Recieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
                 try
                 {
                     messageCallback(message, msg);
@@ -244,6 +246,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
                 {
                     this.logger.warn(err);
                 }
+                this.logger.info(`Recieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
             }, {noAck: true});
         })
         .then((consumer) =>
