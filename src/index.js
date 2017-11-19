@@ -205,6 +205,30 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         .then((mqChannel) =>
         {
             this.subChannel = mqChannel;
+
+            // testing
+            this.subChannel.on('error', (err) =>
+            {
+                console.log('---->Sub Channel Error', err);
+            });
+
+            this.subChannel.on('return', (msg) =>
+            {
+                console.log('---->Sub Channel return', msg);
+            });
+
+            this.subChannel.on('close', () =>
+            {
+                console.log('---->Sub Channel close');
+            });
+
+            this.subChannel.on('drain', () =>
+            {
+                console.log('---->Sub Channel drain');
+            });
+
+            // testing
+
             return bindQueue();
         });
     }
