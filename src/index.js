@@ -263,17 +263,18 @@ EventClient.prototype.unsubscribe = function(key)
 {
     return new Promise((resolve, reject) =>
     {
-        this.subChannel.unbindQueue(this.config.queueName, this.exchangeName, key)
-        .then(() =>
-        {
-            this.logger.info(`Successfully unsubscribed pattern/key '${key}' for queue '${this.config.queueName}'`);
-            resolve();
-        })
-        .catch((err) =>
-        {
-            this.logger.warn(`Failed to unsubscribe pattern/key '${key}' for queue '${this.config.queueName}'`, err);
-            reject(err);
-        });
+        resolve();
+        // this.subChannel.unbindQueue(this.config.queueName, this.exchangeName, key)
+        // .then(() =>
+        // {
+        //     this.logger.info(`Successfully unsubscribed pattern/key '${key}' for queue '${this.config.queueName}'`);
+        //     resolve();
+        // })
+        // .catch((err) =>
+        // {
+        //     this.logger.warn(`Failed to unsubscribe pattern/key '${key}' for queue '${this.config.queueName}'`, err);
+        //     reject(err);
+        // });
     })
 
 }
