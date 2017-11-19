@@ -196,6 +196,34 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         return result;
     }
 
+    // testing
+    const testQueue = () =>
+    {
+        const testQueueName = "testQueue"
+        return this.subChannel.assertQueue('testQueue', {durable: true})
+        .then(() =>
+        {
+            return this.subChannel.bindQueue(testQueueName, this.exchangeName, key)
+        })
+        .then(() =>
+        {
+            return this.subChannel.consume(testQueueName, (msg) =>
+            {
+                let message = this.config.parser(msg.content.toString());
+                this.logger.info(`***TESTRecieved message %j for key '${key}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
+            })
+        })
+        .then((consumer) =>
+        {
+            this.logger.info(`Subscribed to Key '${key}' and queue '${testQueueName}'`, consumer);
+        })
+        .catch((err) =>
+        {
+            this.logger.warn(err);
+        })
+    }
+    // testing
+
     const bindQueue = () =>
     {
         return this.subChannel.assertQueue(this.config.queueName, {durable: true})
@@ -209,7 +237,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
             {
                 let message = this.config.parser(msg.content.toString());
                 this.logger.info(`Recieved message %j for key '${key}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
-                return messageCallback(message, msg);
+                messageCallback(message, msg);
             }, {noAck: true});
         })
         .then((consumer) =>
@@ -247,11 +275,11 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
             });
             // testing
 
-            return bindQueue();
+            return Promise.all([testQueue(), bindQueue()]);
         });
     }
 
-    return bindQueue();
+    return Promise.all([testQueue(), bindQueue()]);
 }
 
 /**
