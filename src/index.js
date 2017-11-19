@@ -208,7 +208,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
             return this.subChannel.consume(testQueueName, (msg) =>
             {
                 let message = this.config.parser(msg.content.toString());
-                this.logger.info(`***TESTRecieved message %j for key '${key}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
+                this.logger.info(`***TESTRecieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
             })
         })
         .then((consumer) =>
@@ -234,7 +234,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
             return this.subChannel.consume(this.config.queueName, (msg) =>
             {
                 let message = this.config.parser(msg.content.toString());
-                this.logger.info(`Recieved message %j for key '${key}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
+                this.logger.info(`Recieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
                 messageCallback(message, msg);
             }, {noAck: true});
         })
