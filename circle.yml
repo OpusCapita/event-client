@@ -14,10 +14,10 @@ test:
     override:
         - sudo service mysql stop
         - docker-compose up -d
-        - docker-compose run main npm run test
-    post:
-        - sudo mkdir $CIRCLE_TEST_REPORTS/junit
-        - sudo cp test-results.xml $CIRCLE_TEST_REPORTS/junit
+        - docker-compose run main npm run test-raw
+    # post:
+        # - sudo mkdir $CIRCLE_TEST_REPORTS/junit
+        # - sudo cp test-results.xml $CIRCLE_TEST_REPORTS/junit
 
 deployment:
     npm:
