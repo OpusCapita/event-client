@@ -63,7 +63,7 @@ var EventClient = function(config)
         .then((mqConn) =>
         {
             logger.info(`Connection established..`);
-            return mqConn.createConfirmChannel();
+            return mqConn.createChannel();
         })
         .then((ch) =>
         {
@@ -244,7 +244,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
                 {
                     this.logger.warn(err);
                 }
-            }, {noAck: true});
+            }, {noAck: false});
         })
         .then((consumer) =>
         {
