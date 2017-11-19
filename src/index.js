@@ -63,7 +63,7 @@ var EventClient = function(config)
         .then((mqConn) =>
         {
             logger.info(`Connection established..`);
-            return mqConn.createChannel();
+            return mqConn.createConfirmChannel();
         })
         .then((ch) =>
         {
@@ -197,28 +197,29 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
     // testing
     const testQueue = () =>
     {
-        const testQueueName = "testQueue"
-        return this.subChannel.assertQueue('testQueue', {durable: true})
-        .then(() =>
-        {
-            return this.subChannel.bindQueue(testQueueName, this.exchangeName, key)
-        })
-        .then(() =>
-        {
-            return this.subChannel.consume(testQueueName, (msg) =>
-            {
-                let message = this.config.parser(msg.content.toString());
-                this.logger.info(`***TESTRecieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
-            }, {noAck: true})
-        })
-        .then((consumer) =>
-        {
-            this.logger.info(`Subscribed to Key '${key}' and queue '${testQueueName}'`, consumer);
-        })
-        .catch((err) =>
-        {
-            this.logger.warn(err);
-        })
+        return Promise.resolve();
+        // const testQueueName = "testQueue"
+        // return this.subChannel.assertQueue('testQueue', {durable: true})
+        // .then(() =>
+        // {
+        //     return this.subChannel.bindQueue(testQueueName, this.exchangeName, key)
+        // })
+        // .then(() =>
+        // {
+        //     return this.subChannel.consume(testQueueName, (msg) =>
+        //     {
+        //         let message = this.config.parser(msg.content.toString());
+        //         this.logger.info(`***TESTRecieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
+        //     })
+        // })
+        // .then((consumer) =>
+        // {
+        //     this.logger.info(`Subscribed to Key '${key}' and queue '${testQueueName}'`, consumer);
+        // })
+        // .catch((err) =>
+        // {
+        //     this.logger.warn(err);
+        // })
     }
     // testing
 
