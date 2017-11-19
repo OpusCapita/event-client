@@ -192,8 +192,6 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
                 this.reQueue(key, msg);
             });
         }
-
-        return result;
     }
 
     // testing
