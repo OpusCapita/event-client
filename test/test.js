@@ -30,8 +30,6 @@ describe('Main', () =>
             {
                 iteration++;
 
-                console.log('======>Simple_Connection_With_NOACK message', msg);
-
                 if (iteration == 2)
                 {
                     subscriberClient.unsubscribe(routingKey)
@@ -68,7 +66,7 @@ describe('Main', () =>
             {
                 iteration++;
 
-                if (iteration == 2)
+                if (iteration == 3)
                 {
                     subscriberClient.unsubscribe(routingKey)
                     .then(() =>

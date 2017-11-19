@@ -207,8 +207,6 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         })
         .then(() =>
         {
-            this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
-
             return this.subChannel.consume(this.config.queueName, (msg) =>
             {
                 let message = this.config.parser(msg.content.toString());
