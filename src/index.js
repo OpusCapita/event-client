@@ -26,7 +26,6 @@ var EventClient = function(config)
     this.subChannel = null;
     this.pubChannel = null;
     this.exchangeName = 'Service_Client_Exchange';
-    this.retryExchangeName = 'Retry_Service_Client_Exchange';
     this.logger = new Logger({ context : { serviceName : configService.serviceName } });
 
     /**
@@ -38,7 +37,6 @@ var EventClient = function(config)
         const config = this.config;
         const logger = this.logger;
         const exchangeName = this.exchangeName;
-        const retryExchangeName = this.retryExchangeName;
 
         return configService.init({ host : config.consul.host }).then(consul =>
         {
@@ -70,12 +68,12 @@ var EventClient = function(config)
         .then((ch) =>
         {
             logger.info(`Channel created..`);
-            return Promise.all([ch, ch.assertExchange(exchangeName, 'topic'), ch.assertExchange(retryExchangeName, 'direct')])
+            return ch.assertExchange(exchangeName, 'topic', {durable: true});
         })
         .then(ch =>
         {
             logger.info(`Exchange '${exchangeName}' defined..`)
-            return Promise.resolve(ch[0]);
+            return Promise.resolve(ch);
         })
         .catch(err =>
         {
