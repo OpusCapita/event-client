@@ -125,6 +125,29 @@ EventClient.prototype.emit = function(key, message)
         {
             this.logger.info(`mq connection established`);
             this.pubChannel = mqChannel;
+
+            // testing
+            this.pubChannel.on('error', (err) =>
+            {
+                console.log('---->Pub Channel Error', err);
+            });
+
+            this.pubChannel.on('return', (msg) =>
+            {
+                console.log('---->Pub Channel return', msg);
+            });
+
+            this.pubChannel.on('close', () =>
+            {
+                console.log('---->Pub Channel close');
+            });
+
+            this.pubChannel.on('drain', () =>
+            {
+                console.log('---->Pub Channel drain');
+            });
+            // testing
+
             return emitEvent();
         })
         .catch((err) =>
@@ -226,7 +249,6 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
             {
                 console.log('---->Sub Channel drain');
             });
-
             // testing
 
             return bindQueue();
