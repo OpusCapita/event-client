@@ -68,12 +68,12 @@ var EventClient = function(config)
         .then((ch) =>
         {
             logger.info(`Channel created..`);
-            return ch.assertExchange(exchangeName, 'topic', {durable: true});
+            return Promise.all([ch, ch.assertExchange(exchangeName, 'topic', {durable: true})]);
         })
         .then(ch =>
         {
             logger.info(`Exchange '${exchangeName}' defined..`)
-            return Promise.resolve(ch);
+            return Promise.resolve(ch[0]);
         })
         .catch(err =>
         {
