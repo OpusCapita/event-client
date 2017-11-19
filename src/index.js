@@ -235,7 +235,14 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
             {
                 let message = this.config.parser(msg.content.toString());
                 this.logger.info(`Recieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
-                messageCallback(message, msg);
+                try
+                {
+                    messageCallback(message, msg);
+                }
+                catch(e)
+                {
+                    this.logger.warn(err);
+                }
             }, {noAck: true});
         })
         .then((consumer) =>
