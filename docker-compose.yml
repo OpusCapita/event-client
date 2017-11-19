@@ -13,7 +13,7 @@ services:
         command: npm run test-raw
 
     rabbitmq:
-        image: rabbitmq:3-management
+        image: rabbitmq
         ports:
             - '4369:4369'
             - '5671:5671'
@@ -23,6 +23,8 @@ services:
             RABBITMQ_DEFAULT_USER: $RABBITMQ_USER
             RABBITMQ_DEFAULT_PASS: $RABBITMQ_PASS
             SERVICE_5672_NAME: 'amqp'
+        volumes:
+            - ./data:/var/lib/rabbitmq/mnesia
 
     registrator:
         image: gliderlabs/registrator
