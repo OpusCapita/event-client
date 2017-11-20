@@ -11,9 +11,6 @@ dependencies:
           - echo -e "$NPM_USER\n$NPM_PASS\n$NPM_EMAIL" | npm login
 
 test:
-    pre:
-        - sudo service mysql stop
-        -
     override:
         - sudo service mysql stop
         - docker-compose down
