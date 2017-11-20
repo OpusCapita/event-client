@@ -25,7 +25,11 @@ describe('Main', () =>
 
             subscriberClient.subscribe((msg, rawMsg) =>
             {
-                done();
+                subscriberClient.unsubscribe(routingKey)
+                .then(() =>
+                {
+                    done();
+                });
             }, routingKey, true)
             .then(() =>
             {
@@ -288,35 +292,35 @@ describe('Main', () =>
             })
         });
 
-        // dispose all approach
-        it('Dispose_test', (done) =>
-        {
-
-            const queueName = "Simple_Connection_To_Test_Dispose";
-            const subscriberClient = new EventClient({queueName: queueName});
-            const routingKey = 'test.dispose';
-
-            const callback = (client, msg) =>
-            {
-                console.log('Recieved message:', client, msg);
-                done();
-            }
-
-            subscriberClient.subscribe(callback.bind(this, 'Client0'), routingKey, true)
-            .then(() =>
-            {
-                return subscriberClient.disposeSubscriber();
-            })
-            .then(() =>
-            {
-                const subscriberClient1 = new EventClient({queueName: queueName});
-                subscriberClient1.subscribe(callback.bind(this, 'Client1'), routingKey, true);
-
-
-                return publisherClient.emit(routingKey, {message: 'Test-ACK-Value'});
-            })
-
-        });
+        // // dispose all approach
+        // it('Dispose_test', (done) =>
+        // {
+        //
+        //     const queueName = "Simple_Connection_To_Test_Dispose";
+        //     const subscriberClient = new EventClient({queueName: queueName});
+        //     const routingKey = 'test.dispose';
+        //
+        //     const callback = (client, msg) =>
+        //     {
+        //         console.log('Recieved message:', client, msg);
+        //         done();
+        //     }
+        //
+        //     subscriberClient.subscribe(callback.bind(this, 'Client0'), routingKey, true)
+        //     .then(() =>
+        //     {
+        //         return subscriberClient.disposeSubscriber();
+        //     })
+        //     .then(() =>
+        //     {
+        //         const subscriberClient1 = new EventClient({queueName: queueName});
+        //         subscriberClient1.subscribe(callback.bind(this, 'Client1'), routingKey, true);
+        //
+        //
+        //         return publisherClient.emit(routingKey, {message: 'Test-ACK-Value'});
+        //     })
+        //
+        // });
 
     });
 });
