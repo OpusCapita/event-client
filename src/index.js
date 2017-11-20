@@ -280,7 +280,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
 
     const bindQueue = () =>
     {
-        return this.subChannel.assertQueue(this.config.queueName, {durable: true})
+        return this.subChannel.assertQueue(this.config.queueName, {durable: true, autoDelete: false})
         .then(() =>
         {
             return this.subChannel.bindQueue(this.config.queueName, this.exchangeName, key)
@@ -289,8 +289,10 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         {
             return this.subChannel.consume(this.config.queueName, (msg) =>
             {
-                // this.subChannel.ack(msg);
+                this.subChannel.ack(msg);
                 let message = this.config.parser(msg.content.toString());
+                this.logger.info(`Recieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
+
                 try
                 {
                     messageCallback(message, msg);
@@ -299,49 +301,74 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
                 {
                     this.logger.warn(err);
                 }
-                this.logger.info(`Recieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
-            }, {noAck: true});
+            }, {noAck: false});
         })
         .then((consumer) =>
         {
-            this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`, consumer);
+            this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
+            return Promise.resolve(consumer);
         });
     }
 
-    if (!this.subChannel)
+    return new Promise((resolve, reject) =>
     {
-        return this._getNewChannel()
-        .then((mqChannel) =>
+        if (!this.subChannel)
         {
-            this.subChannel = mqChannel;
-
-            // testing
-            this.subChannel.on('error', (err) =>
+            this._getNewChannel()
+            .then((mqChannel) =>
             {
-                console.log('---->Sub Channel Error', err);
-            });
+                this.subChannel = mqChannel;
 
-            this.subChannel.on('return', (msg) =>
+                // testing
+                this.subChannel.on('error', (err) =>
+                {
+                    console.log('---->Sub Channel Error', err);
+                });
+
+                this.subChannel.on('return', (msg) =>
+                {
+                    console.log('---->Sub Channel return', msg);
+                });
+
+                this.subChannel.on('close', () =>
+                {
+                    console.log('---->Sub Channel close');
+                });
+
+                this.subChannel.on('drain', () =>
+                {
+                    console.log('---->Sub Channel drain');
+                });
+                // testing
+
+                Promise.all([testQueue(), bindQueue()])
+                .then((consumer) =>
+                {
+                    this.logger.info(`consumer %j for key ${key}`, consumer[1]);
+                    resolve();
+                })
+                .catch((err) =>
+                {
+                    this.logger.warn(err);
+                    reject(err);
+                })
+            });
+        }
+        else
+        {
+            Promise.all([testQueue(), bindQueue()])
+            .then((consumer) =>
             {
-                console.log('---->Sub Channel return', msg);
-            });
-
-            this.subChannel.on('close', () =>
+                this.logger.info(`consumer %j for key ${key}`, consumer[1]);
+                resolve();
+            })
+            .catch((err) =>
             {
-                console.log('---->Sub Channel close');
-            });
-
-            this.subChannel.on('drain', () =>
-            {
-                console.log('---->Sub Channel drain');
-            });
-            // testing
-
-            return Promise.all([testQueue(), bindQueue()]);
-        });
-    }
-
-    return Promise.all([testQueue(), bindQueue()]);
+                this.logger.warn(err);
+                reject(err);
+            })
+        }
+    })
 }
 
 /**
