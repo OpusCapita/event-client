@@ -42,7 +42,7 @@ describe('Main', () =>
             let iteration = 0;
             const routingKey = 'test.ACK';
 
-            
+
             const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_ACK'});
 
             subscriberClient.subscribe((msg, rawMsg) =>
@@ -86,7 +86,7 @@ describe('Main', () =>
         it('Simple_Connection_With_NOACK', (done) =>
         {
             let iteration = 0;
-            const routingKey = 'test.NoACK';
+            const routingKey = 'test.No.ACK';
 
 
             const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_NOACK'});
