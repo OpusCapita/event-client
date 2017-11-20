@@ -156,7 +156,7 @@ EventClient.prototype.emit = function(key, message)
         else
             messageString = this.config.serializer(message);
 
-        const emitted = this.pubChannel.publish(this.exchangeName, key, Buffer.from(messageString), {persistent: true});
+        const emitted = this.pubChannel.publish(this.exchangeName, key, Buffer.from(messageString), {persistent: true, mandatory: true});
 
         if (emitted)
         {
