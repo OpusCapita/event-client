@@ -306,7 +306,11 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         {
             this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
             return Promise.resolve(consumer);
-        });
+        })
+        .catch((err) =>
+        {
+            this.logger.warn(`Failed to binding for queue %s, for key %s`,this.config.queueName, key);
+        })
     }
 
     return new Promise((resolve, reject) =>
