@@ -42,7 +42,7 @@ describe('Main', () =>
             let iteration = 0;
             const routingKey = 'test.ACK';
 
-            // const publisherClient = new EventClient();
+
             const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_ACK'});
 
             subscriberClient.subscribe((msg, rawMsg) =>
@@ -51,12 +51,12 @@ describe('Main', () =>
 
                 if (iteration == 3)
                 {
-                    subscriberClient.unsubscribe(routingKey)
-                    .then(() =>
-                    {
+                    // subscriberClient.unsubscribe(routingKey)
+                    // .then(() =>
+                    // {
                         done();
-                    })
-                    .catch(done)
+                    // })
+                    // .catch(done)
                 }
                 else if (iteration == 1)
                 {
@@ -88,7 +88,7 @@ describe('Main', () =>
             let iteration = 0;
             const routingKey = 'test.NoACK';
 
-            // const publisherClient = new EventClient();
+
             const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_NOACK'});
 
             subscriberClient.subscribe((msg) =>
@@ -97,12 +97,12 @@ describe('Main', () =>
 
                 if (iteration == 2)
                 {
-                    subscriberClient.unsubscribe(routingKey)
-                    .then(() =>
-                    {
+                    // subscriberClient.unsubscribe(routingKey)
+                    // .then(() =>
+                    // {
                         done();
-                    })
-                    .catch(done)
+                    // })
+                    // .catch(done)
                 }
             }, routingKey, true)
             .then(() =>
@@ -125,7 +125,7 @@ describe('Main', () =>
             let iteration = 0;
             const routingKey = 'test.Instances';
 
-            // const publisherClient = new EventClient();
+            
             const subscriberClient1 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES'});
             const subscriberClient2 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES'});
 
@@ -157,7 +157,7 @@ describe('Main', () =>
             let iteration = 0;
             const routingKey = 'test.Instances.ACK';
 
-            // const publisherClient = new EventClient();
+
             const subscriberClient1 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES_NACK'});
             const subscriberClient2 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES_NACK'});
 
@@ -201,7 +201,7 @@ describe('Main', () =>
         */
         it('Shutdown_On_Subscription_And_restart', (done) =>
         {
-            // const publisherClient = new EventClient();
+
             const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_Shutdown_Restart'});
             const routingKey = 'test.shutdown';
 
@@ -291,7 +291,7 @@ describe('Main', () =>
         // dispose all approach
         it('Dispose_test', (done) =>
         {
-            // const publisherClient = new EventClient();
+
             const queueName = "Simple_Connection_To_Test_Dispose";
             const subscriberClient = new EventClient({queueName: queueName});
             const routingKey = 'test.dispose';
