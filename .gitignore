@@ -41,3 +41,5 @@ jspm_packages
 routes/*
 
 test-results.xml
+
+data

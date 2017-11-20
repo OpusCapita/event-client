@@ -14,6 +14,75 @@ describe('Main', () =>
         {
             done();
         });
+
+        /**
+        * SImple test
+        */
+        it('Simple test', (done) =>
+        {
+            const subscriberClient = new EventClient({queueName: 'Simple_Test'});
+            const routingKey = 'simple.Test';
+
+            subscriberClient.subscribe((msg, rawMsg) =>
+            {
+                subscriberClient.unsubscribe(routingKey)
+                .then(() =>
+                {
+                    done();
+                });
+            }, routingKey, true)
+            .then(() =>
+            {
+                publisherClient.emit(routingKey, {message: 'Simple_Test'});
+            });
+        })
+
+        /**
+        * Simple connection with acknowledgement
+        * Test cases with interest to acknowledge the queue
+        */
+        it('Simple_Connection_With_ACK', (done) =>
+        {
+            let iteration = 0;
+            const routingKey = 'test.ACK';
+
+
+            const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_ACK'});
+
+            subscriberClient.subscribe((msg, rawMsg) =>
+            {
+                iteration++;
+
+                if (iteration == 3)
+                {
+                    subscriberClient.unsubscribe(routingKey)
+                    .then(() =>
+                    {
+                        done();
+                    })
+                    .catch(done)
+                }
+                else if (iteration == 1)
+                {
+                    return Promise.reject(new Error('Test to acknowledge with error'));
+                }
+
+                return Promise.resolve();
+            }, routingKey)
+            .then(() =>
+            {
+                return Promise.all([
+                    publisherClient.emit(routingKey, {message: 'Test-ACK-Value'}),
+                    publisherClient.emit(routingKey, {message: 'Test-ACK-Value-1'})
+                ]);
+            })
+            .catch((err) =>
+            {
+                console.log(err);
+            })
+        });
+
+
         /**
         * Simple connection with no acknowledgement
         * Test cases with no interest to acknowledge the queue
@@ -21,9 +90,9 @@ describe('Main', () =>
         it('Simple_Connection_With_NOACK', (done) =>
         {
             let iteration = 0;
-            const routingKey = 'test.NoACK';
+            const routingKey = 'test.No.ACK';
 
-            // const publisherClient = new EventClient();
+
             const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_NOACK'});
 
             subscriberClient.subscribe((msg) =>
@@ -51,52 +120,6 @@ describe('Main', () =>
         });
 
         /**
-        * Simple connection with acknowledgement
-        * Test cases with interest to acknowledge the queue
-        */
-        it('Simple_Connection_With_ACK', (done) =>
-        {
-            let iteration = 0;
-            const routingKey = 'test.ACK';
-
-            // const publisherClient = new EventClient();
-            const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_ACK'});
-
-            subscriberClient.subscribe((msg, rawMsg) =>
-            {
-                iteration++;
-
-                if (iteration == 2)
-                {
-                    subscriberClient.unsubscribe(routingKey)
-                    .then(() =>
-                    {
-                        done();
-                    })
-                    .catch(done)
-                }
-                else if (iteration == 1)
-                {
-                    return Promise.reject(new Error('Test to acknowledge with error'));
-                }
-
-                return Promise.resolve();
-            }, routingKey)
-            .then(() =>
-            {
-                return publisherClient.emit(routingKey, {message: 'Test-ACK-Value'});
-            })
-            .then(() =>
-            {
-                publisherClient.emit(routingKey, {message: 'Test-ACK-Value-1'});
-            })
-            .catch((err) =>
-            {
-                console.log(err);
-            })
-        });
-
-        /**
         * Simple with multiple instances
         * Test cases with no interest to acknowledge the queue and mulitple instance subscribed
         * to the same queue, to check there is no duplicates
@@ -106,7 +129,7 @@ describe('Main', () =>
             let iteration = 0;
             const routingKey = 'test.Instances';
 
-            // const publisherClient = new EventClient();
+
             const subscriberClient1 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES'});
             const subscriberClient2 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES'});
 
@@ -138,7 +161,7 @@ describe('Main', () =>
             let iteration = 0;
             const routingKey = 'test.Instances.ACK';
 
-            // const publisherClient = new EventClient();
+
             const subscriberClient1 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES_NACK'});
             const subscriberClient2 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES_NACK'});
 
@@ -182,7 +205,7 @@ describe('Main', () =>
         */
         it('Shutdown_On_Subscription_And_restart', (done) =>
         {
-            // const publisherClient = new EventClient();
+
             const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_Shutdown_Restart'});
             const routingKey = 'test.shutdown';
 
@@ -272,7 +295,7 @@ describe('Main', () =>
         // dispose all approach
         it('Dispose_test', (done) =>
         {
-            // const publisherClient = new EventClient();
+
             const queueName = "Simple_Connection_To_Test_Dispose";
             const subscriberClient = new EventClient({queueName: queueName});
             const routingKey = 'test.dispose';

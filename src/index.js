@@ -23,11 +23,84 @@ const Logger = require('ocbesbn-logger');
 var EventClient = function(config)
 {
     this.config = extend(true, { }, EventClient.DefaultConfig, config);
-    this.subscribers = {};
-    this.channel = null;
+    this.subChannel = null;
+    this.pubChannel = null;
+    this.mqConn = null;
     this.exchangeName = 'Service_Client_Exchange';
-    this.retryExchangeName = 'Retry_Service_Client_Exchange';
     this.logger = new Logger({ context : { serviceName : configService.serviceName } });
+
+    /**
+     * function to provide AMQP connection
+     * @return {Promise}
+     */
+    this._getConnection = function()
+    {
+        return new Promise((resolve, reject) =>
+        {
+            if (!this.mqConn)
+            {
+                configService.init({ host : this.config.consul.host }).then(consul =>
+                {
+                    return Promise.props({
+                        endpoint : consul.getEndPoint(this.config.consul.mqServiceName),
+                        password : this.config.consul.mqPasswordKey && consul.get(this.config.consul.mqPasswordKey),
+                        username: this.config.consul.mqUserKey && consul.get(this.config.consul.mqUserKey)
+                    });
+                })
+                .then((props) =>
+                {
+                    this.logger.info(`Recieved consul properties`)
+                    return retry(() => {
+                        return amqp.connect({
+                            protocol: 'amqp',
+                            hostname: props.endpoint.host,
+                            port: props.endpoint.port,
+                            username: props.username,
+                            password: props.password,
+                            heartbeat: 60
+                        })
+                    }, {max_tries: 15, interval: 500});
+                })
+                .then((mqConn) =>
+                {
+                    this.mqConn = mqConn;
+                    this.logger.info(`Connection established..`);
+
+                    //testing
+                    mqConn.on('error', (err) =>
+                    {
+                        this.logger.info('Error on connection', err);
+                    });
+
+                    mqConn.on('blocked', (reason) =>
+                    {
+                        this.logger.info('Blocked on connection', reason);
+                    });
+
+                    mqConn.on('unblocked', () =>
+                    {
+                        this.logger.info('unblocked on connection');
+                    });
+
+                    mqConn.on('close', () =>
+                    {
+                        this.logger.info('closed on connection');
+                    });
+
+                    resolve(this.mqConn);
+                })
+                .catch((err) =>
+                {
+                    this.logger.warn('Failed on connection with AMQP server %j', err);
+                    reject(err);
+                })
+            }
+            else
+            {
+                resolve(this.mqConn);
+            }
+        });
+    }
 
     /**
      * Private method to create exchange, channel
@@ -38,63 +111,25 @@ var EventClient = function(config)
         const config = this.config;
         const logger = this.logger;
         const exchangeName = this.exchangeName;
-        const retryExchangeName = this.retryExchangeName;
 
-        return configService.init({ host : config.consul.host }).then(consul =>
-        {
-            return Promise.props({
-                endpoint : consul.getEndPoint(config.consul.mqServiceName),
-                password : config.consul.mqPasswordKey && consul.get(config.consul.mqPasswordKey),
-                username: config.consul.mqUserKey && consul.get(config.consul.mqUserKey)
-            });
-        })
-        .then((props) =>
-        {
-            logger.info(`Recieved consul properties`)
-            return retry(() => {
-                return amqp.connect({
-                    protocol: 'amqp',
-                    hostname: props.endpoint.host,
-                    port: props.endpoint.port,
-                    username: props.username,
-                    password: props.password
-                })
-            }, {max_tries: 15, interval: 500});
-        })
+        return this._getConnection()
         .then((mqConn) =>
         {
-            logger.info(`Connection established..`);
             return mqConn.createChannel();
         })
         .then((ch) =>
         {
-            // testing
-            ch.on('return', (msg) =>
-            {
-                console.log('Failed to route message....', msg);
-            });
-
-            ch.on('drain', () =>
-            {
-                console.log('Channel is Drained....');
-            })
-
-            ch.on('close', () =>
-            {
-                console.log('Channel closed....');
-            })
-            // testing
-            logger.info(`Channel created..`);
-            return Promise.all([ch, ch.assertExchange(exchangeName, 'topic'), ch.assertExchange(retryExchangeName, 'direct')])
+            this.logger.info(`Channel created..`);
+            return Promise.all([ch, ch.assertExchange(exchangeName, 'topic', {durable: true, autoDelete: false})]);
         })
         .then(ch =>
         {
-            logger.info(`Exchange '${exchangeName}' defined..`)
+            this.logger.info(`Exchange '${exchangeName}' defined..`)
             return Promise.resolve(ch[0]);
         })
         .catch(err =>
         {
-            logger.error('An error occured in Event client connection: %j', err.message);
+            this.logger.error('An error occured in Event client connection: %j', err.message);
             throw err;
         });
     }
@@ -104,7 +139,7 @@ var EventClient = function(config)
  * This method allows to emit an event/message
  * @param {String} key - routing key for the message
  * @param {Object} message - message to be communicated
- * @return {Promise}
+ * @return {Boolean}
  */
 EventClient.prototype.emit = function(key, message)
 {
@@ -121,11 +156,11 @@ EventClient.prototype.emit = function(key, message)
         else
             messageString = this.config.serializer(message);
 
-        const emitted = this.channel.publish(this.exchangeName, key, Buffer.from(messageString), {mandatory: true});
+        const emitted = this.pubChannel.publish(this.exchangeName, key, Buffer.from(messageString), {persistent: true});
 
         if (emitted)
         {
-            this.logger.info(`Emitted event via Exchange ${this.exchangeName} and Key '${key}' and message %j`, message);
+            this.logger.info(`Emitted event with key '${key}' and message %j`, message);
             return Promise.resolve();
         }
 
@@ -133,37 +168,31 @@ EventClient.prototype.emit = function(key, message)
         return Promise.reject(new Error('Failed to Emit to Queue'));
     }
 
-    if (!this.channel)
+    if (!this.pubChannel)
     {
-        return new Promise((resolve, reject) =>
+        return this._getNewChannel(this.config)
+        .then((mqChannel) =>
         {
-            this._getNewChannel(this.config)
-            .then((mqChannel) =>
-            {
-                this.logger.info(`mq connection established`);
-                this.channel = mqChannel;
-                return emitEvent();
-            })
-            .then(() =>
-            {
-                resolve();
-            })
-            .catch((err) =>
-            {
-                this.logger.error(err);
-                reject(err);
-            })
-        });
+            this.logger.info(`mq connection established`);
+            this.pubChannel = mqChannel;
+
+            return emitEvent();
+        })
+        .catch((err) =>
+        {
+            this.logger.error(err);
+        })
     }
 
     return emitEvent();
 }
 
-EventClient.prototype.reQueue = function(routingKey, msg)
+EventClient.prototype.reQueue = function(key, msg)
 {
     setTimeout(() =>
     {
-        this.emit(routingKey, msg);
+        this.logger.info('Requeuing message %j for key %s', msg, key)
+        this.emit(key, msg);
     }, 1000);
 }
 
@@ -176,101 +205,100 @@ EventClient.prototype.reQueue = function(routingKey, msg)
  */
 EventClient.prototype.subscribe = function(callback, key, noAck)
 {
-    if (this.subscribers[key])
-    {
-        this.subscribers[key].push({callback: callback, noAck: noAck});
-    }
-    else
-    {
-        this.subscribers[key] = [].concat({callback: callback, noAck: noAck});
-    }
-
     const messageCallback = (msg, rawMsg) =>
     {
-        let routingKey = key;
+        var result = callback(msg, rawMsg);
 
-        if (this.subscribers[routingKey])
+        if (!noAck)
         {
-            for (let i = 0; i < this.subscribers[routingKey].length; i++)
+            if (!result)
             {
-                let ack = this.subscribers[routingKey][i].noAck;
-                let result = this.subscribers[routingKey][i].callback(msg, rawMsg);
-
-                if (!ack && (typeof result == 'undefined' || !result.then))
-                {
-                    this.logger.warn(`No return statement in callback to acknowledge message for key ${key}`);
-                    this.reQueue(key, msg);
-                }
-                else if (result && result.catch)
-                {
-                    result.catch(() =>
-                    {
-                        this.logger.warn(`No return statement in callback to acknowledge message for key ${key}`);
-                        this.reQueue(key, msg);
-                    });
-                }
+                this.logger.warn(`Failed on acknowledgement by consumer function for key %s`, key);
+                this.reQueue(key, msg);
             }
-        }
-        else
-        {
-            this.logger.info(`No Registered callbacks for the provided key ${key}`);
+            else if (result && result.catch)
+            {
+                result.catch((err) =>
+                {
+                    this.logger.warn(`Failed on acknowledgement by consumer function for key %s with error %j`, key, err);
+                    this.reQueue(key, msg);
+                })
+            }
         }
     }
 
     const bindQueue = () =>
     {
-        return new Promise((resolve, reject) =>
+        return this.subChannel.assertQueue(this.config.queueName, {durable: true, autoDelete: false})
+        .then(() =>
         {
-            this.channel.assertQueue(this.config.queueName)
-            .then(() =>
+            return this.subChannel.bindQueue(this.config.queueName, this.exchangeName, key)
+        })
+        .then(() =>
+        {
+            return this.subChannel.consume(this.config.queueName, (msg) =>
             {
-                return this.channel.bindQueue(this.config.queueName, this.exchangeName, key)
-            })
-            .then(() =>
-            {
-                return this.channel.consume(this.config.queueName, (msg) =>
+                let message = this.config.parser(msg.content.toString());
+                this.logger.info(`Recieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
+
+                try
                 {
-                    let message = this.config.parser(msg.content.toString());
-                    this.logger.info(`Recieved message %j for key '${key}' which doesn't require ack`, message, msg);
-                    return messageCallback(message, msg);
-                }, {noAck: true});
-            })
-            .then((consumer) =>
-            {
-                this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`, consumer);
-                resolve();
-            })
-            .catch((err) =>
-            {
-                this.logger.warn(`Failed on subscription`, err);
-                reject(err);
-            });
-        });
+                    messageCallback(message, msg);
+                }
+                catch(e)
+                {
+                    this.logger.warn(err);
+                }
+            }, {noAck: true});
+        })
+        .then((consumer) =>
+        {
+            this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
+            return Promise.resolve(consumer);
+        })
+        .catch((err) =>
+        {
+            this.logger.warn(`Failed to binding for queue %s, for key %s`,this.config.queueName, key);
+        })
     }
 
-    if (!this.channel)
+    return new Promise((resolve, reject) =>
     {
-        return new Promise((resolve, reject) =>
+        if (!this.subChannel)
         {
             this._getNewChannel()
             .then((mqChannel) =>
             {
-                this.channel = mqChannel;
-                return bindQueue();
-            })
-            .then(() =>
+                this.subChannel = mqChannel;
+
+                bindQueue()
+                .then((consumer) =>
+                {
+                    this.logger.info(`consumer %j for key ${key}`, consumer[1]);
+                    resolve();
+                })
+                .catch((err) =>
+                {
+                    this.logger.warn(err);
+                    reject(err);
+                })
+            });
+        }
+        else
+        {
+            bindQueue()
+            .then((consumer) =>
             {
+                this.logger.info(`consumer %j for key ${key}`, consumer[1]);
                 resolve();
             })
             .catch((err) =>
             {
-                this.logger.warn(`Failed on subscription`, err);
-                reject();
-            });
-        });
-    }
-
-    return bindQueue();
+                this.logger.warn(err);
+                reject(err);
+            })
+        }
+    })
 }
 
 /**
@@ -280,11 +308,9 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
  */
 EventClient.prototype.unsubscribe = function(key)
 {
-    this.subscribers[key] = [];
-
     return new Promise((resolve, reject) =>
     {
-        this.channel.unbindQueue(this.config.queueName, this.exchangeName, key)
+        this.subChannel.unbindQueue(this.config.queueName, this.exchangeName, key)
         .then(() =>
         {
             this.logger.info(`Successfully unsubscribed pattern/key '${key}' for queue '${this.config.queueName}'`);
@@ -313,11 +339,9 @@ EventClient.prototype.contextify = function(context)
  */
 EventClient.prototype.disposeSubscriber = function()
 {
-    this.subscribers = {};
-
-    if (this.channel)
+    if (this.subChannel)
     {
-        return this.channel.close()
+        return this.subChannel.close()
         .then(() =>
         {
             this.logger.info('Disposed subscribed keys and channel connection...');
