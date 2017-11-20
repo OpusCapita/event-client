@@ -62,6 +62,27 @@ var EventClient = function(config)
         })
         .then((mqConn) =>
         {
+            //testing
+            mqConn.on('error', (err) =>
+            {
+                this.logger.info('Error on connection', err);
+            });
+
+            mqConn.on('blocked', (reason) =>
+            {
+                this.logger.info('Blocked on connection', reason);
+            });
+
+            mqConn.on('unblocked', () =>
+            {
+                this.logger.info('unblocked on connection');
+            });
+
+            mqConn.on('close', () =>
+            {
+                this.logger.info('closed on connection');
+            });
+            // testing
             logger.info(`Connection established..`);
             return mqConn.createChannel();
         })
@@ -239,14 +260,14 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
             {
                 this.subChannel.ack(msg);
                 let message = this.config.parser(msg.content.toString());
-                // try
-                // {
-                //     messageCallback(message, msg);
-                // }
-                // catch(e)
-                // {
-                //     this.logger.warn(err);
-                // }
+                try
+                {
+                    messageCallback(message, msg);
+                }
+                catch(e)
+                {
+                    this.logger.warn(err);
+                }
                 this.logger.info(`Recieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
             }, {noAck: false});
         })
