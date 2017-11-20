@@ -23,8 +23,7 @@ const Logger = require('ocbesbn-logger');
 var EventClient = function(config)
 {
     this.config = extend(true, { }, EventClient.DefaultConfig, config);
-    // this.subChannel = null;
-    this.subscribers = {};
+    this.subChannel = null;
     this.pubChannel = null;
     this.mqConn = null;
     this.exchangeName = 'Service_Client_Exchange';
@@ -228,7 +227,6 @@ EventClient.prototype.reQueue = function(key, msg)
  */
 EventClient.prototype.subscribe = function(callback, key, noAck)
 {
-    let subChannel = null;
     const messageCallback = (msg, rawMsg) =>
     {
         var result = callback(msg, rawMsg);
@@ -282,14 +280,14 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
 
     const bindQueue = () =>
     {
-        return subChannel.assertQueue(this.config.queueName, {durable: true, autoDelete: false})
+        return this.subChannel.assertQueue(this.config.queueName, {durable: true, autoDelete: false})
         .then(() =>
         {
-            return subChannel.bindQueue(this.config.queueName, this.exchangeName, key)
+            return this.subChannel.bindQueue(this.config.queueName, this.exchangeName, key)
         })
         .then(() =>
         {
-            return subChannel.consume(this.config.queueName, (msg) =>
+            return this.subChannel.consume(this.config.queueName, (msg) =>
             {
                 let message = this.config.parser(msg.content.toString());
                 this.logger.info(`Recieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
@@ -300,21 +298,12 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
                 }
                 catch(e)
                 {
-                    this.logger.warn(e);
+                    this.logger.warn(err);
                 }
             }, {noAck: true});
         })
         .then((consumer) =>
         {
-            if (this.subscribers[key])
-            {
-                this.subscribers[key].push(subChannel);
-            }
-            else
-            {
-                this.subscribers[key] = [].concat(subChannel);
-            }
-
             this.logger.info(`Subscribed to Key '${key}' and queue '${this.config.queueName}'`);
             return Promise.resolve(consumer);
         })
@@ -326,30 +315,30 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
 
     return new Promise((resolve, reject) =>
     {
-        // if (!this.subChannel)
-        // {
+        if (!this.subChannel)
+        {
             this._getNewChannel()
             .then((mqChannel) =>
             {
-                subChannel = mqChannel;
+                this.subChannel = mqChannel;
 
                 // testing
-                subChannel.on('error', (err) =>
+                this.subChannel.on('error', (err) =>
                 {
                     console.log('---->Sub Channel Error', err);
                 });
 
-                subChannel.on('return', (msg) =>
+                this.subChannel.on('return', (msg) =>
                 {
                     console.log('---->Sub Channel return', msg);
                 });
 
-                subChannel.on('close', () =>
+                this.subChannel.on('close', () =>
                 {
                     console.log('---->Sub Channel close');
                 });
 
-                subChannel.on('drain', () =>
+                this.subChannel.on('drain', () =>
                 {
                     console.log('---->Sub Channel drain');
                 });
@@ -367,21 +356,21 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
                     reject(err);
                 })
             });
-        // }
-        // else
-        // {
-        //     Promise.all([testQueue(), bindQueue()])
-        //     .then((consumer) =>
-        //     {
-        //         this.logger.info(`consumer %j for key ${key}`, consumer[1]);
-        //         resolve();
-        //     })
-        //     .catch((err) =>
-        //     {
-        //         this.logger.warn(err);
-        //         reject(err);
-        //     })
-        // }
+        }
+        else
+        {
+            Promise.all([testQueue(), bindQueue()])
+            .then((consumer) =>
+            {
+                this.logger.info(`consumer %j for key ${key}`, consumer[1]);
+                resolve();
+            })
+            .catch((err) =>
+            {
+                this.logger.warn(err);
+                reject(err);
+            })
+        }
     })
 }
 
@@ -392,44 +381,19 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
  */
 EventClient.prototype.unsubscribe = function(key)
 {
-    // return new Promise((resolve, reject) =>
-    // {
-    //     this.subChannel.unbindQueue(this.config.queueName, this.exchangeName, key)
-    //     .then(() =>
-    //     {
-    //         this.logger.info(`Successfully unsubscribed pattern/key '${key}' for queue '${this.config.queueName}'`);
-    //         resolve();
-    //     })
-    //     .catch((err) =>
-    //     {
-    //         this.logger.warn(`Failed to unsubscribe pattern/key '${key}' for queue '${this.config.queueName}'`, err);
-    //         reject(err);
-    //     });
-    // })
-
     return new Promise((resolve, reject) =>
     {
-        if (this.subscribers[key])
+        this.subChannel.unbindQueue(this.config.queueName, this.exchangeName, key)
+        .then(() =>
         {
-            const subscriberForKey = this.subscribers[key].map((channel) =>
-            {
-                return channel.unbindQueue(this.config.queueName, this.exchangeName, key);
-            })
-
-            return Promise.all(subscriberForKey)
-            .then(() =>
-            {
-                this.logger.info(`Successfully unsubscribed pattern/key '${key}' for queue '${this.config.queueName}'`);
-                resolve();
-            })
-            .catch((err) =>
-            {
-                this.logger.warn(`Failed to unsubscribe pattern/key '${key}' for queue '${this.config.queueName}'`, err);
-                reject(err);
-            });
-        }
-
-        return resolve();
+            this.logger.info(`Successfully unsubscribed pattern/key '${key}' for queue '${this.config.queueName}'`);
+            resolve();
+        })
+        .catch((err) =>
+        {
+            this.logger.warn(`Failed to unsubscribe pattern/key '${key}' for queue '${this.config.queueName}'`, err);
+            reject(err);
+        });
     })
 
 }
