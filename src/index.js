@@ -25,8 +25,82 @@ var EventClient = function(config)
     this.config = extend(true, { }, EventClient.DefaultConfig, config);
     this.subChannel = null;
     this.pubChannel = null;
+    this.mqConn = null;
     this.exchangeName = 'Service_Client_Exchange';
     this.logger = new Logger({ context : { serviceName : configService.serviceName } });
+
+    /**
+     * function to provide AMQP connection
+     * @return {Promise}
+     */
+    this._getConnection = function()
+    {
+        return new Promise((resolve, reject) =>
+        {
+            if (!this.mqConn)
+            {
+                configService.init({ host : this.config.consul.host }).then(consul =>
+                {
+                    return Promise.props({
+                        endpoint : consul.getEndPoint(this.config.consul.mqServiceName),
+                        password : this.config.consul.mqPasswordKey && consul.get(this.config.consul.mqPasswordKey),
+                        username: this.config.consul.mqUserKey && consul.get(this.config.consul.mqUserKey)
+                    });
+                })
+                .then((props) =>
+                {
+                    this.logger.info(`Recieved consul properties`)
+                    return retry(() => {
+                        return amqp.connect({
+                            protocol: 'amqp',
+                            hostname: props.endpoint.host,
+                            port: props.endpoint.port,
+                            username: props.username,
+                            password: props.password,
+                            heartbeat: 60
+                        })
+                    }, {max_tries: 15, interval: 500});
+                })
+                .then((mqConn) =>
+                {
+                    this.mqConn = mqConn;
+                    this.logger.info(`Connection established..`);
+
+                    //testing
+                    mqConn.on('error', (err) =>
+                    {
+                        this.logger.info('Error on connection', err);
+                    });
+
+                    mqConn.on('blocked', (reason) =>
+                    {
+                        this.logger.info('Blocked on connection', reason);
+                    });
+
+                    mqConn.on('unblocked', () =>
+                    {
+                        this.logger.info('unblocked on connection');
+                    });
+
+                    mqConn.on('close', () =>
+                    {
+                        this.logger.info('closed on connection');
+                    });
+
+                    resolve(this.mqConn);
+                })
+                .catch((err) =>
+                {
+                    this.logger.warn('Failed on connection with AMQP server %j', err);
+                    reject(err);
+                })
+            }
+            else
+            {
+                resolve(this.mqConn);
+            }
+        });
+    }
 
     /**
      * Private method to create exchange, channel
@@ -38,67 +112,24 @@ var EventClient = function(config)
         const logger = this.logger;
         const exchangeName = this.exchangeName;
 
-        return configService.init({ host : config.consul.host }).then(consul =>
-        {
-            return Promise.props({
-                endpoint : consul.getEndPoint(config.consul.mqServiceName),
-                password : config.consul.mqPasswordKey && consul.get(config.consul.mqPasswordKey),
-                username: config.consul.mqUserKey && consul.get(config.consul.mqUserKey)
-            });
-        })
-        .then((props) =>
-        {
-            logger.info(`Recieved consul properties`)
-            return retry(() => {
-                return amqp.connect({
-                    protocol: 'amqp',
-                    hostname: props.endpoint.host,
-                    port: props.endpoint.port,
-                    username: props.username,
-                    password: props.password,
-                    heartbeat: 60
-                })
-            }, {max_tries: 15, interval: 500});
-        })
+        return this._getConnection()
         .then((mqConn) =>
         {
-            //testing
-            mqConn.on('error', (err) =>
-            {
-                this.logger.info('Error on connection', err);
-            });
-
-            mqConn.on('blocked', (reason) =>
-            {
-                this.logger.info('Blocked on connection', reason);
-            });
-
-            mqConn.on('unblocked', () =>
-            {
-                this.logger.info('unblocked on connection');
-            });
-
-            mqConn.on('close', () =>
-            {
-                this.logger.info('closed on connection');
-            });
-            // testing
-            logger.info(`Connection established..`);
             return mqConn.createChannel();
         })
         .then((ch) =>
         {
-            logger.info(`Channel created..`);
+            this.logger.info(`Channel created..`);
             return Promise.all([ch, ch.assertExchange(exchangeName, 'topic', {durable: true})]);
         })
         .then(ch =>
         {
-            logger.info(`Exchange '${exchangeName}' defined..`)
+            this.logger.info(`Exchange '${exchangeName}' defined..`)
             return Promise.resolve(ch[0]);
         })
         .catch(err =>
         {
-            logger.error('An error occured in Event client connection: %j', err.message);
+            this.logger.error('An error occured in Event client connection: %j', err.message);
             throw err;
         });
     }
