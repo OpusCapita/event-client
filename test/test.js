@@ -14,6 +14,25 @@ describe('Main', () =>
         {
             done();
         });
+
+        /**
+        * SImple test
+        */
+        it('Simple test', (done) =>
+        {
+            const subscriberClient = new EventClient({queueName: 'Simple_Test'});
+            const routingKey = 'simple.Test';
+
+            subscriberClient.subscribe((msg, rawMsg) =>
+            {
+                done();
+            }, routingKey)
+            .then(() =>
+            {
+                publisherClient.emit(routingKey, {message: 'Simple_Test'});
+            });
+        })
+
         /**
         * Simple connection with acknowledgement
         * Test cases with interest to acknowledge the queue
