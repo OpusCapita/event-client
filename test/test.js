@@ -26,7 +26,7 @@ describe('Main', () =>
             subscriberClient.subscribe((msg, rawMsg) =>
             {
                 done();
-            }, routingKey)
+            }, routingKey, true)
             .then(() =>
             {
                 publisherClient.emit(routingKey, {message: 'Simple_Test'});
