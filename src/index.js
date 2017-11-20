@@ -156,7 +156,7 @@ EventClient.prototype.emit = function(key, message)
         else
             messageString = this.config.serializer(message);
 
-        const emitted = this.pubChannel.publish(this.exchangeName, key, Buffer.from(messageString), {persistent: true, mandatory: true});
+        const emitted = this.pubChannel.publish(this.exchangeName, key, Buffer.from(messageString), {persistent: true});
 
         if (emitted)
         {
@@ -281,12 +281,13 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
     const bindQueue = () =>
     {
         return this.subChannel.assertQueue(this.config.queueName, {durable: true, autoDelete: false})
-        .then(() =>
+        .then((Q) =>
         {
-            return this.subChannel.bindQueue(this.config.queueName, this.exchangeName, key)
+            return this.subChannel.bindQueue(Q.queue, this.exchangeName, key)
         })
-        .then(() =>
+        .then((Q) =>
         {
+            console.log('====>Q', Q);
             return this.subChannel.consume(this.config.queueName, (msg) =>
             {
                 // this.subChannel.ack(msg)
