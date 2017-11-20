@@ -22,10 +22,13 @@ describe('Main', () =>
         {
             const subscriberClient = new EventClient({queueName: 'Simple_Test'});
             const routingKey = 'simple.Test';
+            let iteration = 0;
 
             subscriberClient.subscribe((msg, rawMsg) =>
             {
-                done();
+                iteration++;
+                if (iteration == 1)
+                    done();
             }, routingKey, true)
             .then(() =>
             {
