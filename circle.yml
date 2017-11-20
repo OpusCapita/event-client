@@ -11,10 +11,13 @@ dependencies:
           - echo -e "$NPM_USER\n$NPM_PASS\n$NPM_EMAIL" | npm login
 
 test:
+    pre:
+        - sudo service mysql stop
+        -
     override:
         - sudo service mysql stop
         - docker-compose up -d
-        - docker-compose run main npm run test-result
+        - docker-compose run main
     # post:
         # - sudo mkdir $CIRCLE_TEST_REPORTS/junit
         # - sudo cp test-results.xml $CIRCLE_TEST_REPORTS/junit
