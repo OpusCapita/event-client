@@ -176,28 +176,6 @@ EventClient.prototype.emit = function(key, message)
             this.logger.info(`mq connection established`);
             this.pubChannel = mqChannel;
 
-            // testing
-            this.pubChannel.on('error', (err) =>
-            {
-                console.log('---->Pub Channel Error', err);
-            });
-
-            this.pubChannel.on('return', (msg) =>
-            {
-                console.log('---->Pub Channel return', msg);
-            });
-
-            this.pubChannel.on('close', () =>
-            {
-                console.log('---->Pub Channel close');
-            });
-
-            this.pubChannel.on('drain', () =>
-            {
-                console.log('---->Pub Channel drain');
-            });
-            // testing
-
             return emitEvent();
         })
         .catch((err) =>
@@ -249,35 +227,6 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         }
     }
 
-    // testing
-    const testQueue = () =>
-    {
-        return Promise.resolve();
-        // const testQueueName = "testQueue"
-        // return this.subChannel.assertQueue('testQueue', {durable: true})
-        // .then(() =>
-        // {
-        //     return this.subChannel.bindQueue(testQueueName, this.exchangeName, key)
-        // })
-        // .then(() =>
-        // {
-        //     return this.subChannel.consume(testQueueName, (msg) =>
-        //     {
-        //         let message = this.config.parser(msg.content.toString());
-        //         this.logger.info(`***TESTRecieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
-        //     })
-        // })
-        // .then((consumer) =>
-        // {
-        //     this.logger.info(`Subscribed to Key '${key}' and queue '${testQueueName}'`, consumer);
-        // })
-        // .catch((err) =>
-        // {
-        //     this.logger.warn(err);
-        // })
-    }
-    // testing
-
     const bindQueue = () =>
     {
         return this.subChannel.assertQueue(this.config.queueName, {durable: true, autoDelete: false})
@@ -322,29 +271,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
             {
                 this.subChannel = mqChannel;
 
-                // testing
-                this.subChannel.on('error', (err) =>
-                {
-                    console.log('---->Sub Channel Error', err);
-                });
-
-                this.subChannel.on('return', (msg) =>
-                {
-                    console.log('---->Sub Channel return', msg);
-                });
-
-                this.subChannel.on('close', () =>
-                {
-                    console.log('---->Sub Channel close');
-                });
-
-                this.subChannel.on('drain', () =>
-                {
-                    console.log('---->Sub Channel drain');
-                });
-                // testing
-
-                Promise.all([testQueue(), bindQueue()])
+                bindQueue()
                 .then((consumer) =>
                 {
                     this.logger.info(`consumer %j for key ${key}`, consumer[1]);
@@ -359,7 +286,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         }
         else
         {
-            Promise.all([testQueue(), bindQueue()])
+            bindQueue()
             .then((consumer) =>
             {
                 this.logger.info(`consumer %j for key ${key}`, consumer[1]);

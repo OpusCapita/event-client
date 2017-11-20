@@ -10,7 +10,6 @@ services:
         environment:
             RABBITMQ_USER: $RABBITMQ_USER
             RABBITMQ_PASS: $RABBITMQ_PASS
-        command: npm run test-raw
 
     rabbitmq:
         image: rabbitmq:3-management
