@@ -42,7 +42,7 @@ describe('Main', () =>
             let iteration = 0;
             const routingKey = 'test.ACK';
 
-
+            
             const subscriberClient = new EventClient({queueName: 'Simple_Connection_With_ACK'});
 
             subscriberClient.subscribe((msg, rawMsg) =>
@@ -51,12 +51,12 @@ describe('Main', () =>
 
                 if (iteration == 3)
                 {
-                    // subscriberClient.unsubscribe(routingKey)
-                    // .then(() =>
-                    // {
+                    subscriberClient.unsubscribe(routingKey)
+                    .then(() =>
+                    {
                         done();
-                    // })
-                    // .catch(done)
+                    })
+                    .catch(done)
                 }
                 else if (iteration == 1)
                 {
@@ -97,12 +97,12 @@ describe('Main', () =>
 
                 if (iteration == 2)
                 {
-                    // subscriberClient.unsubscribe(routingKey)
-                    // .then(() =>
-                    // {
+                    subscriberClient.unsubscribe(routingKey)
+                    .then(() =>
+                    {
                         done();
-                    // })
-                    // .catch(done)
+                    })
+                    .catch(done)
                 }
             }, routingKey, true)
             .then(() =>
@@ -125,7 +125,7 @@ describe('Main', () =>
             let iteration = 0;
             const routingKey = 'test.Instances';
 
-            
+
             const subscriberClient1 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES'});
             const subscriberClient2 = new EventClient({queueName: 'Simple_Connection_With_INSTANCES'});
 
