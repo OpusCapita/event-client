@@ -7,7 +7,6 @@ machine:
 
 dependencies:
     pre:
-        - rm $HOME/.npmrc
         - echo -e "$NPM_USER\n$NPM_PASS\n$NPM_EMAIL" | npm login --registry=https://registry.npmjs.org/
 
 test:
