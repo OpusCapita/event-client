@@ -5,7 +5,7 @@ This module provides simplified access to the publish/subscribe system provided 
 ### Minimum setup
 First got to your local code directory and run:
 ```
-npm install ocbesbn-event-client
+npm install @opuscapita/event-client
 ```
 To go with the minimum setup, you need to have access to a running **Consul server** to get your endpoint configuration for Message Queue server. In addition, a **Message Queue server** is required which has to be registered inside Consul. If Message Queue password **authentication** is required, Consul has to provide the configuration key **{{your-service-name}}/mq/password** where *{{your-service-name}}* is the least name of the directory your code runs in. If authentication is not used, you can set the **consul.mqPasswordKey** to null or false when creating a new instance of MqEvents.
 
