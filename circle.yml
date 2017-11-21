@@ -25,4 +25,3 @@ deployment:
         commands:
             - npm publish --access public
             - docker-compose run main npm run test-coverage
-            - npm run upload-coverage
