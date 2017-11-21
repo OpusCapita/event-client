@@ -23,6 +23,6 @@ deployment:
     npm:
         branch: master
         commands:
-            - npm publish && git push
+            - npm publish --access public
             - docker-compose run main npm run test-coverage
             - npm run upload-coverage
