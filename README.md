@@ -17,10 +17,10 @@ const MqEvents = require('ocbesbn-event-client');
 var events = new MqEvents({ consul : { host : '{{your-consul-host}}' } });
 
 // Subscribe to a channel by name.
-events.subscribe('my-channel', console.log).then(() => events.emit('Hello, world!', 'my-channel'));
+events.subscribe('my-channel', console.log).then(() => events.emit('my-channel', 'Hello, world!'));
 // - OR -
 // Subscribe to a channel by pattern.
-events.subscribe('my-channel.#', console.log).then(() => events.emit('Hello, world!', 'my-channel.sub-channel'));
+events.subscribe('my-channel.#', console.log).then(() => events.emit('my-channel.sub-channel', 'Hello, world!'));
 
 // unsubscribe from a particular key
 events.unsubscribe('my-channel');
