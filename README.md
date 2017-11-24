@@ -1,4 +1,4 @@
-# ocbesbn-event-client
+# OpusCapita EventClient
 
 This module provides simplified access to the publish/subscribe system provided by Message Queue server. It uses Consul in order to determine the required Message Queue server endpoint and further configurations. To have a look at the full API, please visit the related [wiki page](https://github.com/OpusCapita/event-client/wiki).
 
@@ -7,14 +7,14 @@ First got to your local code directory and run:
 ```
 npm install @opuscapita/event-client
 ```
-To go with the minimum setup, you need to have access to a running **Consul server** to get your endpoint configuration for Message Queue server. In addition, a **Message Queue server** is required which has to be registered inside Consul. If Message Queue password **authentication** is required, Consul has to provide the configuration key **{{your-service-name}}/mq/password** where *{{your-service-name}}* is the least name of the directory your code runs in. If authentication is not used, you can set the **consul.mqPasswordKey** to null or false when creating a new instance of MqEvents.
+To go with the minimum setup, you need to have access to a running **Consul server** to get your endpoint configuration for Message Queue server. In addition, a **Message Queue server** is required which has to be registered inside Consul. If Message Queue password **authentication** is required, Consul has to provide the configuration key **{{your-service-name}}/mq/password** where *{{your-service-name}}* is the least name of the directory your code runs in. If authentication is not used, you can set the **consul.mqPasswordKey** to null or false when creating a new instance of EventClient.
 
 If all this is set up, go to you code and add the following lines:
 
 ```JS
-const MqEvents = require('ocbesbn-event-client');
+const EventClient = require('ocbesbn-event-client');
 
-var events = new MqEvents({ consul : { host : '{{your-consul-host}}' } });
+var events = new EventClient({ consul : { host : '{{your-consul-host}}' } });
 
 // Subscribe to a channel by name.
 events.subscribe('my-channel', console.log).then(() => events.emit('my-channel', 'Hello, world!'));
