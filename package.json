@@ -1,7 +1,7 @@
 {
   "name": "@opuscapita/event-client",
-  "version": "1.0.2",
-  "description": "An event client to handle the event system in microservices architecture",
+  "version": "1.0.3",
+  "description": "An event client to handle the event system in microservices architecture.",
   "main": "src/index.js",
   "scripts": {
     "start": "npm run test-result",
@@ -17,7 +17,6 @@
   "license": "MIT",
   "dependencies": {
     "amqplib": "^0.5.2",
-    "amqplib-retry": "^1.1.7",
     "bluebird": "^3.5.1",
     "bluebird-retry": "^0.11.0",
     "extend": "^3.0.1",
@@ -29,8 +28,6 @@
     "mocha": "^3.5.3",
     "mocha-junit-reporter": "^1.13.0",
     "nodemon": "^1.12.1",
-    "nyc": "^11.2.1",
-    "ocbesbn-db-init": "^1.1.11",
-    "ocbesbn-web-init": "^2.2.8"
+    "nyc": "^11.2.1"
   }
 }

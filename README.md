@@ -44,6 +44,12 @@ The default configuration object provides hints about what the module's standard
         mqUserKey: 'mq/user',
         mqPasswordKey : 'mq/password'
     },
+    consulOverride : {
+        host : null,
+        port : null,
+        username : null,
+        password : null
+    },
     context : {
     }
 }
