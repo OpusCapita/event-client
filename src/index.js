@@ -20,7 +20,7 @@ const Logger = require('ocbesbn-logger');
  * trigger an event or subscribe to an event
  */
 
-var EventClient = function(config)
+const EventClient = function(config)
 {
     this.config = extend(true, { }, EventClient.DefaultConfig, config);
     this.subChannel = null;
@@ -49,8 +49,10 @@ var EventClient = function(config)
                 })
                 .then((props) =>
                 {
-                    this.logger.info(`Recieved consul properties`)
-                    return retry(() => {
+                    this.logger.info(`Recieved consul properties`);
+
+                    return retry(() =>
+                    {
                         return amqp.connect({
                             protocol: 'amqp',
                             hostname: props.endpoint.host,
@@ -141,7 +143,7 @@ var EventClient = function(config)
  * @param {Object} message - message to be communicated
  * @return {Boolean}
  */
-EventClient.prototype.emit = function(key, message)
+EventClient.prototype.emit = function(key, message, context = null)
 {
     /**
      * This method will take care of emitting the message to the exchange
@@ -149,13 +151,13 @@ EventClient.prototype.emit = function(key, message)
      */
     const emitEvent = () =>
     {
-        var messageString = '';
+        const transportObj = {
+            topic : key,
+            context : extend(true, { }, this.config.context, context),
+            payload : message
+        }
 
-        if(typeof message === 'object' && this.config.context)
-            messageString = this.config.serializer(extend(true, { }, this.config.context, message));
-        else
-            messageString = this.config.serializer(message);
-
+        const messageString = this.config.serializer(transportObj);
         const emitted = this.pubChannel.publish(this.exchangeName, key, Buffer.from(messageString), {persistent: true});
 
         if (emitted)
@@ -192,7 +194,7 @@ EventClient.prototype.reQueue = function(key, msg)
     setTimeout(() =>
     {
         this.logger.info('Requeuing message %j for key %s', msg, key)
-        this.emit(key, msg);
+        this.emit(msg.topic, msg.payload, msg.context);
     }, 1000);
 }
 
@@ -207,7 +209,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
 {
     const messageCallback = (msg, rawMsg) =>
     {
-        var result = callback(msg, rawMsg);
+        const result = callback(msg.payload, msg.context, msg.topic);
 
         if (!noAck)
         {
@@ -238,16 +240,16 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         {
             return this.subChannel.consume(this.config.queueName, (msg) =>
             {
-                let message = this.config.parser(msg.content.toString());
+                const message = this.config.parser(msg.content.toString());
                 this.logger.info(`Recieved message %j for key '${msg.fields.routingKey}' ${!noAck ? "which requires ack" : "which doesn't require ack"}`, message, msg);
 
                 try
                 {
-                    messageCallback(message, msg);
+                    messageCallback(message);
                 }
                 catch(e)
                 {
-                    this.logger.warn(err);
+                    this.logger.warn(e);
                 }
             }, {noAck: true});
         })
@@ -258,7 +260,7 @@ EventClient.prototype.subscribe = function(callback, key, noAck)
         })
         .catch((err) =>
         {
-            this.logger.warn(`Failed to binding for queue %s, for key %s`,this.config.queueName, key);
+            this.logger.warn(`Failed to binding for queue %s, for key %s`,this.config.queueName, key, err);
         })
     }
 
