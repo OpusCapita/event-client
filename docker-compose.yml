@@ -21,7 +21,7 @@ services:
         environment:
             RABBITMQ_DEFAULT_USER: $RABBITMQ_USER
             RABBITMQ_DEFAULT_PASS: $RABBITMQ_PASS
-            SERVICE_5672_NAME: 'amqp'
+            SERVICE_5672_NAME: 'rabbitmq-amqp'
         volumes:
             - ./data:/var/lib/rabbitmq/mnesia
 
