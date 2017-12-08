@@ -11,7 +11,8 @@
     "test-result": "npm run setup-consul ; ${NODE_PATH}/.bin/mocha --timeout 500000",
     "clean": "${NODE_PATH}/.bin/rimraf coverage .nyc_output routes",
     "test-coverage": "npm run setup-consul ; ${NODE_PATH}/.bin/nyc --reporter=lcov ${NODE_PATH}/.bin/mocha --timeout 5000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
-    "upload-coverage": "cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js"
+    "upload-coverage": "cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js",
+    "prepublish": "npm version patch -m 'Version set to %s. [skip ci]'"
   },
   "author": "Suresh Varman <suresh.varman@cronj.com>",
   "license": "MIT",
