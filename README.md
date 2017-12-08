@@ -40,7 +40,7 @@ The default configuration object provides hints about what the module's standard
     queueName: configService.serviceName, // name of the service
     consul : {
         host : 'consul',
-        mqServiceName  : 'mq',
+        mqServiceName  : 'rabbitmq-amqp',
         mqUserKey: 'mq/user',
         mqPasswordKey : 'mq/password'
     },

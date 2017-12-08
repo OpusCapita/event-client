@@ -211,7 +211,7 @@ EventClient.DefaultConfig = {
     queueName: configService.serviceName,
     consul : {
         host : 'consul',
-        mqServiceName  : 'amqp',
+        mqServiceName  : 'rabbitmq-amqp',
         mqUserKey: 'mq/user',
         mqPasswordKey : 'mq/password'
     },
