@@ -2,7 +2,7 @@
   "name": "@opuscapita/event-client",
   "version": "1.0.4",
   "description": "An event client to handle the event system in microservices architecture.",
-  "main": "src/index.js",
+  "main": "index.js",
   "scripts": {
     "start": "npm run test-result",
     "test": "npm run setup-consul ; npm run clean && ${NODE_PATH}/.bin/nyc ${NODE_PATH}/.bin/mocha --timeout 50000 -R mocha-junit-reporter",
