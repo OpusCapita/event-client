@@ -16,7 +16,7 @@ class EventClient
         this.subChannel = null;
         this.connection = null;
         this.subscriptions = { };
-        this.exchangeName = configService.serviceName;
+        this.exchangeName = this.config.exchangeName || configService.serviceName;
         this.logger = new Logger({ context : { serviceName : configService.serviceName } });
     }
 
