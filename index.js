@@ -27,9 +27,14 @@ class EventClient
 
         return this.pubChannel.then(channel =>
         {
+            const localContext = {
+                senderService : configService.serviceName,
+                timestamp : new Date()
+            };
+
             const transportObj = {
                 topic : topic,
-                context : extend(true, { }, this.config.context, context),
+                context : extend(true, { }, this.config.context, context, localContext),
                 payload : message
             };
 
@@ -184,7 +189,7 @@ class EventClient
     async _registerConsumner(channel, exchangeName, queueName, topic, callback)
     {
         await channel.assertQueue(queueName, { durable: true, autoDelete: false });
-        await channel.bindQueue(queueName, exchangeName, topic);
+        await retry(() => channel.bindQueue(queueName, exchangeName, topic), { max_tries : 60, interval : 500, timeout : 120000, backoff : 1.5 });
 
         return await channel.consume(queueName, async message =>
         {

@@ -48,8 +48,10 @@ describe('Main', () =>
 
             subscriberClient.subscribe(routingKey, (payload, context, key) =>
             {
+                delete context.timestamp;
+
                 assert.deepEqual(payload, input);
-                assert.deepEqual(context, { truth : 42 });
+                assert.deepEqual(context, { truth : 42, senderService : 'event-client' });
                 assert.equal(key, routingKey);
 
                 subscriberClient.unsubscribe(routingKey).then(() => done()).catch(done);

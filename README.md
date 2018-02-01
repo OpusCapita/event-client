@@ -37,7 +37,6 @@ The default configuration object provides hints about what the module's standard
 {
     serializer : JSON.stringify,
     parser : JSON.parse,
-    queueName: configService.serviceName, // name of the service
     consul : {
         host : 'consul',
         mqServiceName  : 'rabbitmq-amqp',
