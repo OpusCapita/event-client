@@ -38,12 +38,12 @@ describe('Main', () =>
         */
         it('Simple test', (done) =>
         {
-            const subscriberClient = new EventClient({ queueName: 'Simple_Test', context : { nix : 1 } });
+            const subscriberClient = new EventClient({ context : { nix : 1 } });
             const publisherClient = new EventClient();
 
             publisherClient.contextify({ truth : 42 });
 
-            const routingKey = 'simple.Test';
+            const routingKey = 'event-client.Test';
             const input = { message: 'Simple_Test' };
 
             subscriberClient.subscribe(routingKey, (payload, context, key) =>
@@ -66,9 +66,9 @@ describe('Main', () =>
         {
             let iteration = 0;
 
-            const subscriberClient = new EventClient({ queueName: 'Simple_Connection_With_ACK' });
+            const subscriberClient = new EventClient();
             const publisherClient = new EventClient({ consulOverride });
-            const routingKey = 'test.ACK';
+            const routingKey = 'event-client.ACK';
             const input = { message: 'Test-ACK-Value' };
 
             subscriberClient.subscribe(routingKey, (payload, context, key) =>
@@ -107,11 +107,11 @@ describe('Main', () =>
         it('Simple_Connection_With_Multiple', (done) =>
         {
             let iteration = 0;
-            const routingKey = 'test.Instances';
+            const routingKey = 'event-client.Instances';
             const input = { message: 'Test-ACK-Value' };
             const publisherClient = new EventClient();
-            const subscriberClient1 = new EventClient({ consulOverride, queueName: 'Simple_Connection_With_INSTANCES' });
-            const subscriberClient2 = new EventClient({ queueName: 'Simple_Connection_With_INSTANCES' });
+            const subscriberClient1 = new EventClient({ consulOverride });
+            const subscriberClient2 = new EventClient();
 
             const callback = (payload, context, key) =>
             {
@@ -151,9 +151,9 @@ describe('Main', () =>
         it('Pattern_test', (done) =>
         {
             const publisherClient = new EventClient();
-            const subscriberClient = new EventClient({ queueName: 'Pattern_test' });
-            const routingPattern = 'pattern.#';
-            const routingKey = 'pattern.test';
+            const subscriberClient = new EventClient();
+            const routingPattern = 'event-client.#';
+            const routingKey = 'event-client.test';
 
             let iterator = 0;
             let output;
@@ -178,9 +178,9 @@ describe('Main', () =>
 
         it('Dispose_test 1', (done) =>
         {
-            const subscriberClient = new EventClient({ queueName: 'Simple_Connection_To_Test_Dispose' });
-            const publisherClient = new EventClient({ queueName: 'Simple_Connection_To_Test_Dispose' });
-            const routingKey = 'test.dispose';
+            const subscriberClient = new EventClient();
+            const publisherClient = new EventClient();
+            const routingKey = 'event-client.dispose';
             const input = { message : 'Gone!' };
 
             const callback = (client, msg) => null;
@@ -198,9 +198,9 @@ describe('Main', () =>
         // dispose all approach
         it('Dispose_test 2', (done) =>
         {
-            const subscriberClient = new EventClient({ queueName: 'Simple_Connection_To_Test_Dispose' });
-            const publisherClient = new EventClient({ queueName: 'Simple_Connection_To_Test_Dispose' });
-            const routingKey = 'test.dispose';
+            const subscriberClient = new EventClient();
+            const publisherClient = new EventClient();
+            const routingKey = 'event-client.dispose';
             const input = { message : 'Gone!' };
 
             const callback = (client, msg) => null;

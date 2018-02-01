@@ -16,7 +16,7 @@ class EventClient
         this.subChannel = null;
         this.connection = null;
         this.subscriptions = { };
-        this.exchangeName = 'Service_Client_Exchange';
+        this.exchangeName = configService.serviceName;
         this.logger = new Logger({ context : { serviceName : configService.serviceName } });
     }
 
@@ -53,7 +53,10 @@ class EventClient
 
         return this.subChannel.then(channel =>
         {
-            const consumer = this._registerConsumner(channel, this.config.queueName, topic, result =>
+            const exchangeName = topic.substr(0, topic.indexOf('.'));
+            const queueName = configService.serviceName;
+
+            const consumer = this._registerConsumner(channel, exchangeName, queueName, topic, result =>
             {
                 return callback(result.payload, result.context, result.topic);
             });
@@ -178,10 +181,10 @@ class EventClient
         return channel;
     }
 
-    async _registerConsumner(channel, queueName, topic, callback)
+    async _registerConsumner(channel, exchangeName, queueName, topic, callback)
     {
         await channel.assertQueue(queueName, { durable: true, autoDelete: false });
-        await channel.bindQueue(queueName, this.exchangeName, topic);
+        await channel.bindQueue(exchangeName, queueName, topic);
 
         return await channel.consume(queueName, async message =>
         {
@@ -208,7 +211,6 @@ class EventClient
 EventClient.DefaultConfig = {
     serializer : JSON.stringify,
     parser : JSON.parse,
-    queueName: configService.serviceName,
     consul : {
         host : 'consul',
         mqServiceName  : 'rabbitmq-amqp',
