@@ -184,7 +184,7 @@ class EventClient
     async _registerConsumner(channel, exchangeName, queueName, topic, callback)
     {
         await channel.assertQueue(queueName, { durable: true, autoDelete: false });
-        await channel.bindQueue(exchangeName, queueName, topic);
+        await channel.bindQueue(queueName, exchangeName, topic);
 
         return await channel.consume(queueName, async message =>
         {
