@@ -15,6 +15,7 @@ class EventClient
         this.pubChannel = null;
         this.subChannels = { };
         this.subscriptions = { };
+        this.callbacks = { };
         this.serviceName = configService.serviceName;
         this.exchangeName = this.config.exchangeName || this.serviceName;
         this.logger = new Logger({ context : { serviceName : this.serviceName } });
@@ -75,27 +76,39 @@ class EventClient
 
         return channel.then(channel =>
         {
+            this._addCallback(topic, callback);
+
             const exchangeName = topic.substr(0, topic.indexOf('.'));
             const queueName = this.serviceName;
 
             const consumer = this._registerConsumner(channel, exchangeName, queueName, topic, message =>
             {
+                const routingKey = message.fields.routingKey;
+                const callback = this._findCallback(routingKey);
                 const logger = new Logger({ context : { serviceName : this.serviceName } });
+
                 logger.info(`Receiving event for topic "${topic}"`);
 
-                if(message.properties.contentType === this.config.parserContentType)
+                if(callback)
                 {
-                    const result = this.config.parser(message.content);
+                    if(message.properties.contentType === this.config.parserContentType)
+                    {
+                        const result = this.config.parser(message.content);
 
-                    logger.contextify(extend(true, { }, result.context, message.properties));
-                    logger.info(`Passing event "${result.topic}" to application.`);
+                        logger.contextify(extend(true, { }, result.context, message.properties));
+                        logger.info(`Passing event "${result.topic}" to application.`);
 
-                    return callback(result.payload, result.context, result.topic);
+                        return callback(result.payload, result.context, result.topic);
+                    }
+                    else
+                    {
+                        logger.error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
+                        throw new Error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
+                    }
                 }
                 else
                 {
-                    logger.error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
-                    throw new Error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
+                    logger.info(`There is no subscriber for topic "${topic}"`);
                 }
             });
 
@@ -118,6 +131,8 @@ class EventClient
                 return channel.cancel(subscription).then(() =>
                 {
                     delete this.subscriptions[topic];
+                    delete this.callbacks[this._findCallbackKey(topic)];
+
                     return true;
                 })
             });
@@ -142,7 +157,7 @@ class EventClient
             all.push(this.subChannels[key].then(channel => channel.close()));
 
         if(all.length)
-            return Promise.all(all).then(() => this.subChannels = { }).then(() => true);
+            return Promise.all(all).then(() => { this.subChannels = { }; this.callbacks = { } }).then(() => true);
 
         return Promise.resolve(false);
     }
@@ -251,6 +266,37 @@ class EventClient
                 {}
             }
         });
+    }
+
+    _addCallback(topic, callback)
+    {
+        this.callbacks[topic] = callback;
+
+        const keys = Object.keys(this.callbacks).sort().reverse();
+        const temp = { };
+
+        keys.forEach(k => temp[k] = this.callbacks[k]);
+        this.callbacks = temp;
+    }
+
+    _findCallbackKey(topic)
+    {
+        if(this.callbacks[topic])
+            return topic
+
+        for(const key in this.callbacks)
+        {
+            const exp = new RegExp('^' + key.replace('*', '[^\.]+$').replace('#', '([^\.]+)+$'));
+
+            if(topic.match(exp))
+                return key;
+        }
+    }
+
+    _findCallback(topic)
+    {
+        const key = this._findCallbackKey(topic);
+        return key && this.callbacks[key];
     }
 }
 

@@ -37,6 +37,8 @@ The default configuration object provides hints about what the module's standard
 {
     serializer : JSON.stringify,
     parser : JSON.parse,
+    serializerContentType : 'application/json',
+    parserContentType : 'application/json',
     consul : {
         host : 'consul',
         mqServiceName  : 'rabbitmq-amqp',
