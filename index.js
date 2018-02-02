@@ -1,34 +1,36 @@
-'use strict'
-
 const extend = require('extend');
 const configService = require('ocbesbn-config');
 const Promise = require('bluebird');
 const retry = require('bluebird-retry');
 const amqp = require('amqplib');
 const Logger = require('ocbesbn-logger');
+const crypto = require('crypto');
 
 class EventClient
 {
     constructor(config)
     {
         this.config = extend(true, { }, EventClient.DefaultConfig, config);
-        this.pubChannel = null;
-        this.subChannel = null;
         this.connection = null;
+        this.pubChannel = null;
+        this.subChannels = { };
         this.subscriptions = { };
-        this.exchangeName = this.config.exchangeName || configService.serviceName;
-        this.logger = new Logger({ context : { serviceName : configService.serviceName } });
+        this.serviceName = configService.serviceName;
+        this.exchangeName = this.config.exchangeName || this.serviceName;
+        this.logger = new Logger({ context : { serviceName : this.serviceName } });
     }
 
     emit(topic, message, context = null)
     {
+        const logger = new Logger({ context : { serviceName : this.serviceName } });
+
         if(!this.pubChannel)
             this.pubChannel = Promise.resolve(this._getNewChannel());
 
         return this.pubChannel.then(channel =>
         {
             const localContext = {
-                senderService : configService.serviceName,
+                senderService : this.serviceName,
                 timestamp : new Date()
             };
 
@@ -38,8 +40,23 @@ class EventClient
                 payload : message
             };
 
+            const messageId = `${this.serviceName}.${crypto.randomBytes(16).toString('hex')}`;
+
+            const options = {
+                persistent : true,
+                contentType : this.config.serializerContentType,
+                contentEncoding : 'utf-8',
+                timestamp : Math.floor(Date.now() / 1000),
+                correlationId : context && context.correlationId,
+                appId : this.serviceName,
+                messageId : messageId
+            }
+
+            logger.contextify(extend(true, { }, transportObj.context, options));
+            logger.info(`Emitting event "${topic}"`);
+
             const messageBuffer = Buffer.from(this.config.serializer(transportObj));
-            const result = channel.publish(this.exchangeName, topic, messageBuffer, { persistent: true });
+            const result = channel.publish(this.exchangeName, topic, messageBuffer, options);
 
             if(result)
                 return Promise.resolve();
@@ -53,34 +70,52 @@ class EventClient
         if(this.hasSubscription(topic))
             Promise.reject('The topic is already registered. A topic can only be registered once per instance.');
 
-        if(!this.subChannel)
-            this.subChannel = Promise.resolve(this._getNewChannel());
+        const channel = Promise.resolve(this._getNewChannel());
+        this.subChannels[topic] = channel;
 
-        return this.subChannel.then(channel =>
+        return channel.then(channel =>
         {
             const exchangeName = topic.substr(0, topic.indexOf('.'));
-            const queueName = configService.serviceName;
+            const queueName = this.serviceName;
 
-            const consumer = this._registerConsumner(channel, exchangeName, queueName, topic, result =>
+            const consumer = this._registerConsumner(channel, exchangeName, queueName, topic, message =>
             {
-                return callback(result.payload, result.context, result.topic);
+                const logger = new Logger({ context : { serviceName : this.serviceName } });
+                logger.info(`Receiving event for topic "${topic}"`);
+
+                if(message.properties.contentType === this.config.parserContentType)
+                {
+                    const result = this.config.parser(message.content);
+
+                    logger.contextify(extend(true, { }, result.context, message.properties));
+                    logger.info(`Passing event "${result.topic}" to application.`);
+
+                    return callback(result.payload, result.context, result.topic);
+                }
+                else
+                {
+                    logger.error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
+                    throw new Error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
+                }
             });
 
             return Promise.resolve(consumer).then(result =>
             {
                 this.subscriptions[topic] = result.consumerTag;
-                return null;
             });
         });
     }
 
     unsubscribe(topic)
     {
-        if(this.subChannel && this.subscriptions[topic])
+        const channel = this.subChannels[topic];
+        const subscription = this.subscriptions[topic];
+
+        if(channel && subscription)
         {
-            return this.subChannel.then(channel =>
+            return channel.then(channel =>
             {
-                return channel.cancel(this.subscriptions[topic]).then(() =>
+                return channel.cancel(subscription).then(() =>
                 {
                     delete this.subscriptions[topic];
                     return true;
@@ -101,8 +136,13 @@ class EventClient
 
     disposeSubscriber()
     {
-        if(this.subChannel)
-            return this.subChannel.then(channel => channel.close()).then(() => this.subChannel = null).then(() => true);
+        const all = [ ];
+
+        for(const key in this.subChannels)
+            all.push(this.subChannels[key].then(channel => channel.close()));
+
+        if(all.length)
+            return Promise.all(all).then(() => this.subChannels = { }).then(() => true);
 
         return Promise.resolve(false);
     }
@@ -144,6 +184,7 @@ class EventClient
             {
                 const config = this.config.consul;
                 const consul = await configService.init();
+
                 props = await Promise.props({
                     endpoint : consul.getEndPoint(config.mqServiceName),
                     username : config.mqUserKey && consul.get(config.mqUserKey),
@@ -161,7 +202,7 @@ class EventClient
                     password : props.password,
                     heartbeat : 60
                 });
-            }, { max_tries: 15, interval: 500 });
+            }, { max_tries: 15, interval: 500, backoff : 1.5 });
 
             this.connection.on('error', err => this.logger.warn('Error on connection.', err));
             this.connection.on('blocked', err => this.logger.warn('Blocked connection.', err));
@@ -195,7 +236,7 @@ class EventClient
         {
             try
             {
-                const result = await Promise.resolve(callback(this.config.parser(message.content.toString())));
+                const result = await Promise.resolve(callback(message));
                 await (result === false ? channel.nack(message) : channel.ack(message));
             }
             catch(e)
@@ -216,6 +257,8 @@ class EventClient
 EventClient.DefaultConfig = {
     serializer : JSON.stringify,
     parser : JSON.parse,
+    serializerContentType : 'application/json',
+    parserContentType : 'application/json',
     consul : {
         host : 'consul',
         mqServiceName  : 'rabbitmq-amqp',
