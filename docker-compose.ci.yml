@@ -1,0 +1,7 @@
+version: '2'
+services:
+  main:
+    volumes:
+      - ./test:/home/node/event-client/test
+      - ./coverage:/home/node/event-client/coverage
+    command: 'npm run test'

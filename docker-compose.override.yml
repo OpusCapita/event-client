@@ -1,0 +1,5 @@
+version: '2'
+services:
+  main:
+    volumes:
+        - .:/home/node/event-client
