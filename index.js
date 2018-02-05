@@ -203,7 +203,7 @@ class EventClient
             else
             {
                 const config = this.config.consul;
-                const consul = await configService.init();
+                const consul = await configService.init({ retryCount : 60, retryTimeout : 500 });
 
                 props = await Promise.props({
                     endpoint : consul.getEndPoint(config.mqServiceName),
