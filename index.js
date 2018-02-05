@@ -217,7 +217,7 @@ class EventClient
                     password : props.password,
                     heartbeat : 60
                 });
-            }, { max_tries: 50, interval: 500, backoff : 1.5 });
+            }, { max_tries: 60, interval: 500, timeout : 120000, backoff : 1.5 });
 
             this.connection.on('error', err => this.logger.warn('Error on connection.', err));
             this.connection.on('blocked', err => this.logger.warn('Blocked connection.', err));
