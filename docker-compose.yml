@@ -2,11 +2,10 @@ version: '2'
 services:
     main:
         build: .
-        volumes:
-            - .:/home/node/event-client
         depends_on:
             - registrator
             - rabbitmq
+            - consul
         environment:
             RABBITMQ_USER: $RABBITMQ_USER
             RABBITMQ_PASS: $RABBITMQ_PASS
