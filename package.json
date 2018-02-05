@@ -9,7 +9,7 @@
     "setup-consul": "curl -X PUT -d ${RABBITMQ_USER} http://consul:8500/v1/kv/event-client/mq/user ; curl -X PUT -d ${RABBITMQ_PASS} http://consul:8500/v1/kv/event-client/mq/password",
     "test-raw": "npm run setup-consul ; ${NODE_PATH}/.bin/nodemon --exec ${NODE_PATH}/.bin/mocha --timeout 500000",
     "test-result": "npm run setup-consul ; ${NODE_PATH}/.bin/mocha --timeout 500000",
-    "clean": "${NODE_PATH}/.bin/rimraf coverage .nyc_output routes",
+    "clean": "${NODE_PATH}/.bin/rimraf coverage/* .nyc_output routes",
     "test-coverage": "npm run setup-consul ; ${NODE_PATH}/.bin/nyc --reporter=lcov ${NODE_PATH}/.bin/mocha --timeout 5000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
     "upload-coverage": "cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js",
     "prepublishOnly": "npm version patch -m 'Version set to %s. [skip ci]'"
