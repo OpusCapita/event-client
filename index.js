@@ -21,6 +21,11 @@ class EventClient
         this.logger = new Logger({ context : { serviceName : this.serviceName } });
     }
 
+    init()
+    {
+        return Promise.resolve(this._getNewChannel()).then(channel => channel.close()).then(() => true);
+    }
+
     emit(topic, message, context = null)
     {
         const logger = new Logger({ context : { serviceName : this.serviceName } });

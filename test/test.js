@@ -46,17 +46,20 @@ describe('Main', () =>
             const routingKey = 'event-client.Test';
             const input = { message: 'Simple_Test' };
 
-            subscriberClient.subscribe(routingKey, (payload, context, key) =>
+            subscriberClient.init().then(() =>
             {
-                delete context.timestamp;
+                return subscriberClient.subscribe(routingKey, (payload, context, key) =>
+                {
+                    delete context.timestamp;
 
-                assert.deepEqual(payload, input);
-                assert.deepEqual(context, { truth : 42, senderService : 'event-client' });
-                assert.equal(key, routingKey);
+                    assert.deepEqual(payload, input);
+                    assert.deepEqual(context, { truth : 42, senderService : 'event-client' });
+                    assert.equal(key, routingKey);
 
-                subscriberClient.unsubscribe(routingKey).then(() => done()).catch(done);
+                    subscriberClient.unsubscribe(routingKey).then(() => done()).catch(done);
+                })
+                .then(() => publisherClient.emit(routingKey, input))
             })
-            .then(() => publisherClient.emit(routingKey, input))
             .catch(done);
         })
 
