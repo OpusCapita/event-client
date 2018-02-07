@@ -17,7 +17,7 @@ jobs:
           name: Testing
           command: |
             docker-compose build --no-cache
-            docker-compose -f docker-compose.yml -f docker-compose.ci.yml run main npm run test
+            docker-compose -f docker-compose.yml -f docker-compose.ci.yml run main npm run test-raw
             docker-compose -f docker-compose.yml -f docker-compose.ci.yml run main npm run test-coverage
       - store_artifacts:
           path: ./test/test-results.xml
