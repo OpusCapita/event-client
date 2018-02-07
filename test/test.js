@@ -3,8 +3,20 @@ const Promise = require('bluebird');
 const configService = require('ocbesbn-config');
 const assert = require('assert');
 
+const waitForService = (serviceName) => configService.getEndPoint(serviceName).catch(e => waitForService(serviceName));
+
 describe('Main', () =>
 {
+    before('Init', async () =>
+    {
+        return configService.init();
+    });
+
+    before('Wait for services', async () =>
+    {
+        return waitForService('rabbitmq-amqp');
+    });
+
     describe('#init()', () =>
     {
         const consulOverride = { };
@@ -12,25 +24,19 @@ describe('Main', () =>
         /**
         * Check rabbitMQ is ready
         */
-        before('ACL connection', () =>
+        before('ACL connection', async () =>
         {
-            return configService.init().then(consul =>
-            {
-                const config = EventClient.DefaultConfig.consul;
+            const config = EventClient.DefaultConfig.consul;
+            const props = await Promise.props({
+                endpoint : configService.getEndPoint(config.mqServiceName),
+                username : config.mqUserKey && configService.get(config.mqUserKey),
+                password : config.mqPasswordKey && configService.get(config.mqPasswordKey)
+            });
 
-                return Promise.props({
-                    endpoint : consul.getEndPoint(config.mqServiceName),
-                    username : config.mqUserKey && consul.get(config.mqUserKey),
-                    password : config.mqPasswordKey && consul.get(config.mqPasswordKey)
-                });
-            })
-            .then(props =>
-            {
-                consulOverride.host = props.endpoint.host;
-                consulOverride.port = props.endpoint.port;
-                consulOverride.username = props.username;
-                consulOverride.password = props.password;
-            })
+            consulOverride.host = props.endpoint.host;
+            consulOverride.port = props.endpoint.port;
+            consulOverride.username = props.username;
+            consulOverride.password = props.password;
         });
 
         /**
