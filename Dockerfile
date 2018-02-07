@@ -1,7 +1,7 @@
 FROM node:8-alpine
 MAINTAINER kwierchris
 
-RUN apk add curl
+RUN apk add --no-cache curl
 
 WORKDIR /home/node/event-client
 COPY . .
