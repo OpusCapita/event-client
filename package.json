@@ -10,7 +10,7 @@
     "test": "npm run clean ; npm run setup-consul ; npx nyc ${NODE_PATH}/.bin/mocha --timeout 50000 --recursive -R mocha-junit-reporter",
     "test-raw": "npm run clean ; npm run setup-consul ; npx nyc ${NODE_PATH}/.bin/mocha --timeout 50000 --recursive",
     "test-coverage": "npm run clean ; npm run setup-consul ; npx nyc --reporter=lcov  ${NODE_PATH}/.bin/mocha --timeout 50000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
-    "upload-coverage": "cat ./coverage/lcov.info | npx coveralls.js",
+    "upload-coverage": "cat ./coverage/lcov.info | npx coveralls",
     "api-doc": "npx jsdoc2md index.js > wiki/Home.md",
     "doc": "npm run api-doc",
     "prepublishOnly": "npm version patch -m 'Version set to %s. [skip ci]'"

@@ -13,6 +13,7 @@ jobs:
             docker login -u $DOCKER_USER -p $DOCKER_PASS
             git config --global user.email "${GIT_USER_EMAIL}"
             git config --global user.name "${GIT_USER_NAME}"
+            git clone https://github.com/OpusCapita/event-client.wiki.git wiki
       - run:
           name: Testing
           command: |
@@ -25,7 +26,8 @@ jobs:
           name: Publishing to NPM...
           command: |
             if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              
+              docker-compose -f docker-compose.yml -f docker-compose.ci.yml run main npm run doc
+              cd wiki && git add . && git commit -m 'Updated documentation' && git push ; cd .. && rm -Rf wiki
               git reset HEAD --hard
               echo -e "$NPM_USERNAME\n$NPM_PASSWORD\n$NPM_EMAIL" | npm login
               npm publish
