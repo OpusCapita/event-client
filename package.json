@@ -12,6 +12,8 @@
     "clean": "${NODE_PATH}/.bin/rimraf coverage/* .nyc_output routes",
     "test-coverage": "npm run setup-consul ; ${NODE_PATH}/.bin/nyc --reporter=lcov ${NODE_PATH}/.bin/mocha --timeout 5000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
     "upload-coverage": "cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js",
+    "api-doc": "npx jsdoc2md index.js > wiki/Home.md",
+    "doc": "npm run api-doc",
     "prepublishOnly": "npm version patch -m 'Version set to %s. [skip ci]'"
   },
   "author": "Suresh Varman <suresh.varman@cronj.com>",
@@ -26,6 +28,7 @@
   },
   "devDependencies": {
     "coveralls": "^2.13.0",
+    "jsdoc-to-markdown": "^4.0.1",
     "mocha": "^3.5.3",
     "mocha-junit-reporter": "^1.13.0",
     "nodemon": "^1.12.1",

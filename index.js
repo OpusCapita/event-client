@@ -6,8 +6,16 @@ const amqp = require('amqplib');
 const Logger = require('ocbesbn-logger');
 const crypto = require('crypto');
 
+/**
+* Class for simplifying access to message queue servers implementing the Advanced Message Queuing Protocol (amqp).
+* Each instance of this class is capable of receiving and emitting events.
+*/
 class EventClient
 {
+    /**
+     * Creates a new instance of EventClient.
+     * @param {object} config - For a list of possible configuration values see {@link EventClient.DefaultConfig}.
+     */
     constructor(config)
     {
         this.config = extend(true, { }, EventClient.DefaultConfig, config);
@@ -21,11 +29,31 @@ class EventClient
         this.logger = new Logger({ context : { serviceName : this.serviceName } });
     }
 
+    /**
+     * Makes some basic initializations like exchange creation as they are automatically done by emitting the first event.
+     * This is used to create the required environment without pushing anything tho the queue.
+     *
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving with true if the subscription succeeded. Otherwise the promise gets rejected with an error.
+     */
     init()
     {
         return Promise.resolve(this._getNewChannel()).then(channel => channel.close()).then(() => true);
     }
 
+    /**
+     * Raises an event for a certain topic by passing a message and an optional context.
+     *
+     * The passed *topic* has to be a string and identify the raised event as exact as possible.
+     * The passed *message* can consis of all data types that can be serialized into a string.
+     * The optional *context* paraemter adds additional meta data to the event. It has to be an event
+     * and will extend a possibly existing global context defined by the config object passed
+     * to the constructor (see {@link EventClient.DefaultConfig}).
+     *
+     * @param {string} topic - Full name of a topic.
+     * @param {object} message - Payload to be sent to a receiver.
+     * @param {object} context - Optional context containing meta data for the receiver of an event.
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving with null if the subscription succeeded. Otherwise the promise gets rejected with an error.
+     */
     emit(topic, message, context = null)
     {
         const logger = new Logger({ context : { serviceName : this.serviceName } });
@@ -71,6 +99,19 @@ class EventClient
         });
     }
 
+    /**
+     * This method allows you to subscribe to one or more events. An event can either be an absolute name of a
+     * topic to subscribe (e.g. my-service.status) or a pattern (e.g. my-servervice.#).
+     *
+     * The callback function to be passed will be called, once a message arrives. Its definition should look like
+     * **(payload, context, topic) : true|false|Promise**. In case false or Promise.resolve(false) is returned
+     * from this callback or an error is thrown, the subscribe method will reschedule the event for redelivery.
+     * If nothing or anything !== false or Promise.resolve(false) is returned, the event will be marked as delivered.
+     *
+     * @param {string} topic - Full name of a topic or a pattern.
+     * @param {function} callback - Function to be called when a message for a topic or a pattern arrives.
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving with null if the subscription succeeded. Otherwise the promise gets rejected with an error.
+     */
     subscribe(topic, callback)
     {
         if(this.hasSubscription(topic))
@@ -120,10 +161,17 @@ class EventClient
             return Promise.resolve(consumer).then(result =>
             {
                 this.subscriptions[topic] = result.consumerTag;
+                return null;
             });
         });
     }
 
+    /**
+     * This method allows you to unsubscribe from a previous subscribed *topic* or pattern.
+     *
+     * @param {string} topic - Full name of a topic or a pattern.
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving with true or false depending on whenever the topic existed in the subscriptions.
+     */
     unsubscribe(topic)
     {
         const channel = this.subChannels[topic];
@@ -146,6 +194,10 @@ class EventClient
         return Promise.resolve(false);
     }
 
+    /**
+     * Method for releasing the publishing channel.
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving with true or false if there was no active connection.
+     */
     disposePublisher()
     {
         if(this.pubChannel)
@@ -154,6 +206,10 @@ class EventClient
         return Promise.resolve(false);
     }
 
+    /**
+     * Method for releasing all subscriptions and close the subscription channel.
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving with true or false if there was no active connection.
+     */
     disposeSubscriber()
     {
         const all = [ ];
@@ -167,11 +223,24 @@ class EventClient
         return Promise.resolve(false);
     }
 
+    /**
+     * Allows adding a default context to every event emitted.
+     * You may also want to construct an instance of this class by passing the context
+     * parameter to the constructor. For further information have a look at {@link EventClient.DefaultConfig}.
+     */
     contextify(context)
     {
         this.config.context = context || { };
     }
 
+    /**
+     * Checks whenever the passed *topic* or pattern already has an active subscription inside the
+     * current instance of EventClient. The *topic* can either be a full name of a
+     * channel or a pattern.
+     *
+     * @param {string} topic - Full name of a topic or a pattern.
+     * @returns {boolean} Returns true if the *topic* is already registered; otherwise false.
+     */
     hasSubscription(topic)
     {
         return typeof this.subscriptions[topic] !== 'undefined';
@@ -305,6 +374,25 @@ class EventClient
     }
 }
 
+/**
+* Static object representing a default configuration set.
+*
+* @property {object} serializer - Function to use for serializing messages in order to send them.
+* @property {object} parser - Function to use for deserializing messages received.
+* @property {string} serializerContentType - Content type of the serialized message added as a meta data field to each event emitted.
+* @property {string} parserContentType - Content type for which events should be received and parsed using the configured parser.
+* @property {object} consul - Object for configuring consul related parameters.
+* @property {string} consul.host - Hostname of a consul server.
+* @property {string} consul.mqServiceName - Name of the endpoint for the message queue server in consul.
+* @property {string} consul.mqUserKey - Consul configuration key for message queue authentication.
+* @property {string} consul.mqPasswordKey - Consul configuration key for message queue authentication.
+* @property {object} consulOverride - Configuraion object for manually overriding the message queue connection configuration.
+* @property {string} consulOverride.host - Hostname of a message queue server.
+* @property {number} consulOverride.port - Port of a message queue server.
+* @property {string} consulOverride.username - User name for message queue authentication.
+* @property {string} consulOverride.password - User password for message queue authentication.
+* @property {object} context - Optional context object to automatically extend emitted messages.
+*/
 EventClient.DefaultConfig = {
     serializer : JSON.stringify,
     parser : JSON.parse,
