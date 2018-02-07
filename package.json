@@ -3,6 +3,10 @@
   "version": "1.0.15",
   "description": "An event client to handle the event system in microservices architecture.",
   "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OpusCapita/event-client"
+},
   "scripts": {
     "start": "npm run test-result",
     "setup-consul": "curl -X PUT -d ${RABBITMQ_USER} http://consul:8500/v1/kv/event-client/mq/user ; curl -X PUT -d ${RABBITMQ_PASS} http://consul:8500/v1/kv/event-client/mq/password",
