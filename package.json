@@ -5,33 +5,31 @@
   "main": "index.js",
   "scripts": {
     "start": "npm run test-result",
-    "test": "npm run setup-consul ; npm run clean && ${NODE_PATH}/.bin/nyc ${NODE_PATH}/.bin/mocha --timeout 50000 -R mocha-junit-reporter",
     "setup-consul": "curl -X PUT -d ${RABBITMQ_USER} http://consul:8500/v1/kv/event-client/mq/user ; curl -X PUT -d ${RABBITMQ_PASS} http://consul:8500/v1/kv/event-client/mq/password",
-    "test-raw": "npm run setup-consul ; ${NODE_PATH}/.bin/nodemon --exec ${NODE_PATH}/.bin/mocha --timeout 500000",
-    "test-result": "npm run setup-consul ; ${NODE_PATH}/.bin/mocha --timeout 500000",
-    "clean": "${NODE_PATH}/.bin/rimraf coverage/* .nyc_output routes",
-    "test-coverage": "npm run setup-consul ; ${NODE_PATH}/.bin/nyc --reporter=lcov ${NODE_PATH}/.bin/mocha --timeout 5000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
-    "upload-coverage": "cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js",
+    "clean": "npx rimraf coverage/* .nyc_output",
+    "test": "npm run clean ; npm run setup-consul ; npx nyc ${NODE_PATH}/.bin/mocha --timeout 50000 --recursive -R mocha-junit-reporter",
+    "test-raw": "npm run clean ; npm run setup-consul ; npx nyc ${NODE_PATH}/.bin/mocha --timeout 50000 --recursive",
+    "test-coverage": "npm run clean ; npm run setup-consul ; npx nyc --reporter=lcov  ${NODE_PATH}/.bin/mocha --timeout 50000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
+    "upload-coverage": "cat ./coverage/lcov.info | npx coveralls.js",
     "api-doc": "npx jsdoc2md index.js > wiki/Home.md",
     "doc": "npm run api-doc",
     "prepublishOnly": "npm version patch -m 'Version set to %s. [skip ci]'"
   },
-  "author": "Suresh Varman <suresh.varman@cronj.com>",
+  "author": "Christian Drengenberg <christian.drengenberg@opuscapita.com>",
   "license": "MIT",
   "dependencies": {
     "amqplib": "^0.5.2",
     "bluebird": "^3.5.1",
     "bluebird-retry": "^0.11.0",
     "extend": "^3.0.1",
-    "ocbesbn-config": "^2.2.11",
+    "ocbesbn-config": "^2.3.3",
     "ocbesbn-logger": "^1.0.5"
   },
   "devDependencies": {
     "coveralls": "^2.13.0",
     "jsdoc-to-markdown": "^4.0.1",
     "mocha": "^3.5.3",
-    "mocha-junit-reporter": "^1.13.0",
-    "nodemon": "^1.12.1",
-    "nyc": "^11.2.1"
+    "mocha-junit-reporter": "^1.17.0",
+    "nyc": "^11.4.1"
   }
 }
