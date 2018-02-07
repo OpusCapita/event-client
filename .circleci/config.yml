@@ -13,7 +13,6 @@ jobs:
             docker login -u $DOCKER_USER -p $DOCKER_PASS
             git config --global user.email "${GIT_USER_EMAIL}"
             git config --global user.name "${GIT_USER_NAME}"
-            git clone https://github.com/OpusCapita/event-client.wiki.git wiki
       - run:
           name: Testing
           command: |
