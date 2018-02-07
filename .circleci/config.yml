@@ -25,8 +25,7 @@ jobs:
           name: Publishing to NPM...
           command: |
             if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              docker-compose -f docker-compose.yml -f docker-compose.ci.yml run main npm run doc
-              cd wiki && git add . && git commit -m 'Updated documentation' && git push ; cd .. && rm -Rf wiki
+              
               git reset HEAD --hard
               echo -e "$NPM_USERNAME\n$NPM_PASSWORD\n$NPM_EMAIL" | npm login
               npm publish
