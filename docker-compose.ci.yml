@@ -4,4 +4,5 @@ services:
     volumes:
       - ./test:/home/node/event-client/test
       - ./coverage:/home/node/event-client/coverage
+      - ./wiki:/home/node/event-client/wiki
     command: 'npm run test'
