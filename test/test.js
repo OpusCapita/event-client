@@ -52,7 +52,7 @@ describe('Main', () =>
             const routingKey = 'event-client.Test';
             const input = { message: 'Simple_Test' };
 
-            subscriberClient.init().then(() =>
+            subscriberClient.init().then(async () =>
             {
                 return subscriberClient.subscribe(routingKey, (payload, context, key) =>
                 {
@@ -161,8 +161,9 @@ describe('Main', () =>
         // pattern test
         it('Pattern_test', (done) =>
         {
-            const publisherClient = new EventClient();
-            const subscriberClient = new EventClient();
+
+            const publisherClient = new EventClient({ new : 1 });
+            const subscriberClient = new EventClient({ new : 2 });
             const routingPattern = 'event-client.#';
             const routingKey = 'event-client.test';
 
@@ -209,7 +210,7 @@ describe('Main', () =>
         // dispose all approach
         it('Dispose_test 2', (done) =>
         {
-            const subscriberClient = new EventClient();
+            const subscriberClient = new EventClient({ queueName : 'test' });
             const publisherClient = new EventClient();
             const routingKey = 'event-client.dispose';
             const input = { message : 'Gone!' };
