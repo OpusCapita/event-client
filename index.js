@@ -6,6 +6,8 @@ const amqp = require('amqplib');
 const Logger = require('ocbesbn-logger');
 const crypto = require('crypto');
 
+const cachedInstances = { };
+
 /**
 * Class for simplifying access to message queue servers implementing the Advanced Message Queuing Protocol (amqp).
 * Each instance of this class is capable of receiving and emitting events.
@@ -19,6 +21,12 @@ class EventClient
     constructor(config)
     {
         this.config = extend(true, { }, EventClient.DefaultConfig, config);
+
+        const cacheKey = crypto.createHash('md5').update(JSON.stringify(this.config)).digest("hex");
+
+        if(cachedInstances[cacheKey])
+            return cachedInstances[cacheKey];
+
         this.connection = null;
         this.pubChannel = null;
         this.subChannels = { };
@@ -26,7 +34,10 @@ class EventClient
         this.callbacks = { };
         this.serviceName = configService.serviceName;
         this.exchangeName = this.config.exchangeName || this.serviceName;
+        this.queueName = this.config.queueName || this.serviceName;
         this.logger = new Logger({ context : { serviceName : this.serviceName } });
+
+        cachedInstances[cacheKey] = this;
     }
 
     /**
@@ -115,7 +126,7 @@ class EventClient
     subscribe(topic, callback)
     {
         if(this.hasSubscription(topic))
-            Promise.reject('The topic is already registered. A topic can only be registered once per instance.');
+            Promise.reject(new Error(`The topic "${topic}" is already registered.`));
 
         const channel = Promise.resolve(this._getNewChannel());
         this.subChannels[topic] = channel;
@@ -125,9 +136,8 @@ class EventClient
             this._addCallback(topic, callback);
 
             const exchangeName = topic.substr(0, topic.indexOf('.'));
-            const queueName = this.serviceName;
 
-            const consumer = this._registerConsumner(channel, exchangeName, queueName, topic, message =>
+            const consumer = this._registerConsumner(channel, exchangeName, this.queueName, topic, message =>
             {
                 const routingKey = message.fields.routingKey;
                 const callback = this._findCallback(routingKey);
@@ -155,6 +165,7 @@ class EventClient
                 else
                 {
                     logger.info(`There is no subscriber for topic "${topic}"`);
+                    throw new Error(`There is no subscriber for topic "${topic}"`);
                 }
             });
 
@@ -381,6 +392,7 @@ class EventClient
 * @property {object} parser - Function to use for deserializing messages received.
 * @property {string} serializerContentType - Content type of the serialized message added as a meta data field to each event emitted.
 * @property {string} parserContentType - Content type for which events should be received and parsed using the configured parser.
+* @property {string} queueName - Name of the queue to connect to. By default this is the service name as of [ocbesbn-config](https://github.com/OpusCapita/config/wiki#module_ocbesbn-config.serviceName).
 * @property {object} consul - Object for configuring consul related parameters.
 * @property {string} consul.host - Hostname of a consul server.
 * @property {string} consul.mqServiceName - Name of the endpoint for the message queue server in consul.
@@ -398,6 +410,7 @@ EventClient.DefaultConfig = {
     parser : JSON.parse,
     serializerContentType : 'application/json',
     parserContentType : 'application/json',
+    queueName : null,
     consul : {
         host : 'consul',
         mqServiceName  : 'rabbitmq-amqp',
