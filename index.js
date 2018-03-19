@@ -82,7 +82,7 @@ class EventClient
         {
             const localContext = {
                 senderService : this.serviceName,
-                timestamp : new Date()
+                timestamp : new Date().toString()
             };
 
             const transportObj = {
@@ -100,7 +100,8 @@ class EventClient
                 timestamp : Math.floor(Date.now() / 1000),
                 correlationId : context && context.correlationId,
                 appId : this.serviceName,
-                messageId : messageId
+                messageId : messageId,
+                headers : transportObj.context
             }
 
             logger.contextify(extend(true, { }, transportObj.context, options));
@@ -160,6 +161,9 @@ class EventClient
                     if(message.properties.contentType === this.config.parserContentType)
                     {
                         const result = this.config.parser(message.content);
+
+                        if(message.properties.headers)
+                            result.context = message.properties.headers;
 
                         logger.contextify(extend(true, { }, result.context, message.properties));
                         logger.info(`Passing event "${result.topic}" to application.`);
