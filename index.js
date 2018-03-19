@@ -9,6 +9,12 @@ const crypto = require('crypto');
 const cachedInstances = { };
 
 /**
+ * Options object for event subscriptions.
+ * @typedef {Object} Opts
+ * @property {number} messageLimit The maximum amount of unacknowleged messages a single subscription will get at once.
+ */
+
+/**
 * Class for simplifying access to message queue servers implementing the Advanced Message Queuing Protocol (amqp).
 * Each instance of this class is capable of receiving and emitting events.
 */
@@ -121,9 +127,10 @@ class EventClient
      *
      * @param {string} topic - Full name of a topic or a pattern.
      * @param {function} callback - Function to be called when a message for a topic or a pattern arrives.
+     * @param {Opts} opts - Additional options to set for the subscription.
      * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving with null if the subscription succeeded. Otherwise the promise gets rejected with an error.
      */
-    subscribe(topic, callback)
+    subscribe(topic, callback, opts = { })
     {
         if(this.hasSubscription(topic))
             Promise.reject(new Error(`The topic "${topic}" is already registered.`));
@@ -131,13 +138,16 @@ class EventClient
         const channel = Promise.resolve(this._getNewChannel());
         this.subChannels[topic] = channel;
 
-        return channel.then(channel =>
+        return channel.then(async channel =>
         {
+            if(opts && opts.messageLimit)
+                await channel.prefetch(opts.messageLimit);
+
             this._addCallback(topic, callback);
 
             const exchangeName = topic.substr(0, topic.indexOf('.'));
 
-            const consumer = this._registerConsumner(channel, exchangeName, this.queueName, topic, message =>
+            const consumer = await this._registerConsumner(channel, exchangeName, this.queueName, topic, message =>
             {
                 const routingKey = message.fields.routingKey;
                 const callback = this._findCallback(routingKey);
@@ -169,11 +179,9 @@ class EventClient
                 }
             });
 
-            return Promise.resolve(consumer).then(result =>
-            {
-                this.subscriptions[topic] = result.consumerTag;
-                return null;
-            });
+            this.subscriptions[topic] = consumer.consumerTag;
+
+            return null;
         });
     }
 
@@ -190,15 +198,14 @@ class EventClient
 
         if(channel && subscription)
         {
-            return channel.then(channel =>
+            return channel.then(async channel =>
             {
-                return channel.cancel(subscription).then(() =>
-                {
-                    delete this.subscriptions[topic];
-                    delete this.callbacks[this._findCallbackKey(topic)];
+                await channel.cancel(subscription);
 
-                    return true;
-                })
+                delete this.subscriptions[topic];
+                delete this.callbacks[this._findCallbackKey(topic)];
+
+                return true;
             });
         }
 

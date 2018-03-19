@@ -4,6 +4,7 @@ const configService = require('ocbesbn-config');
 const assert = require('assert');
 
 const waitForService = (serviceName) => configService.getEndPoint(serviceName).catch(e => waitForService(serviceName));
+const sleep = (timeout) => new Promise((resolve, reject) => setTimeout(resolve, timeout));
 
 describe('Main', () =>
 {
@@ -39,9 +40,6 @@ describe('Main', () =>
             consulOverride.password = props.password;
         });
 
-        /**
-        * SImple test
-        */
         it('Simple test', (done) =>
         {
             const subscriberClient = new EventClient({ context : { nix : 1 } });
@@ -69,10 +67,7 @@ describe('Main', () =>
             .catch(done);
         })
 
-        /**
-        * Simple connection with acknowledgement
-        * Test cases with interest to acknowledge the queue
-        */
+
         it('Simple_Connection_With_ACK', (done) =>
         {
             let iteration = 0;
@@ -110,14 +105,10 @@ describe('Main', () =>
             .catch(done);
         });
 
-        /**
-        * Simple with multiple instances
-        * Test cases with no interest to acknowledge the queue and mulitple instance subscribed
-        * to the same queue, to check there is no duplicates
-        */
-        it('Simple_Connection_With_Multiple', (done) =>
+        it('Multiple (different) instances', async () =>
         {
             let iteration = 0;
+
             const routingKey = 'event-client.Instances';
             const input = { message: 'Test-ACK-Value' };
             const publisherClient = new EventClient();
@@ -136,32 +127,25 @@ describe('Main', () =>
                     throw new Error()
             };
 
-            Promise.all([
+            await Promise.all([
                 subscriberClient1.subscribe(routingKey, callback),
-                subscriberClient2.subscribe(routingKey, callback)
-            ])
-            .then(() =>
-            {
-                return publisherClient.emit(routingKey, input);
-            })
-            .delay(500)
-            .then(() =>
-            {
-                assert.equal(iteration, 3);
+                subscriberClient2.subscribe(routingKey, callback, { messageLimit : 5 })
+            ]);
 
-                return Promise.all([
-                    subscriberClient1.unsubscribe(routingKey),
-                    subscriberClient2.unsubscribe(routingKey)
-                ]);
-            })
-            .then(() => done())
-            .catch(done);
+            await publisherClient.emit(routingKey, input);
+
+            await sleep(2000);
+
+            assert.equal(iteration, 3);
+
+            await Promise.all([
+                subscriberClient1.unsubscribe(routingKey),
+                subscriberClient2.unsubscribe(routingKey)
+            ]);
         });
 
-        // pattern test
-        it('Pattern_test', (done) =>
+        it('Pattern test', async () =>
         {
-
             const publisherClient = new EventClient({ new : 1 });
             const subscriberClient = new EventClient({ new : 2 });
             const routingPattern = 'event-client.#';
@@ -171,66 +155,53 @@ describe('Main', () =>
             let output;
             const input = { message: 'Test-pattern' }
 
-            subscriberClient.subscribe(routingPattern, (payload, context, key) =>
+            await subscriberClient.subscribe(routingPattern, (payload, context, key) =>
             {
                 iterator++;
                 output = payload;
             })
-            .then(() => publisherClient.emit(routingKey, input))
-            .delay(500)
-            .then(() =>
-            {
-                assert.equal(iterator, 1);
-                assert.deepEqual(output, input);
 
-                done();
-            })
-            .catch(done);
+            await publisherClient.emit(routingKey, input);
+            await sleep(2000);
+
+            assert.equal(iterator, 1);
+            assert.deepEqual(output, input);
         });
 
-        it('Dispose_test 1', (done) =>
+        it('Dispose test 1', async () =>
         {
             const subscriberClient = new EventClient();
             const publisherClient = new EventClient();
             const routingKey = 'event-client.dispose';
             const input = { message : 'Gone!' };
 
-            const callback = (client, msg) => null;
+            const callback = (payload) => assert.deepEqual(payload, input);
 
-            subscriberClient.subscribe(routingKey, callback)
-                .then(() => subscriberClient.disposeSubscriber())
-                .then(() => publisherClient.emit(routingKey, input))
-                .then(() => publisherClient.disposePublisher())
-                .then(() => publisherClient.disposePublisher())
-                .then(() => done())
-                .catch(done);
+            await subscriberClient.subscribe(routingKey, callback);
+            await subscriberClient.disposeSubscriber();
+            await publisherClient.emit(routingKey, input);
+            await publisherClient.disposePublisher();
+            await publisherClient.disposePublisher();
         });
 
-
-        // dispose all approach
-        it('Dispose_test 2', (done) =>
+        it('Dispose test 2', async () =>
         {
             const subscriberClient = new EventClient({ queueName : 'test' });
             const publisherClient = new EventClient();
             const routingKey = 'event-client.dispose';
             const input = { message : 'Gone!' };
 
-            const callback = (client, msg) => null;
+            const callback = (payload) => assert.deepEqual(payload, input);
 
-            subscriberClient.subscribe(routingKey, callback)
-            .then(() => subscriberClient.emit(routingKey, input))
-            .then(() =>
-            {
-                return subscriberClient.unsubscribe(routingKey)
-                    .then(() => subscriberClient.disposeSubscriber())
-                    .then(() => subscriberClient.disposeSubscriber())
-                    .then(() => subscriberClient.unsubscribe(routingKey))
-            })
-            .then(() => publisherClient.emit(routingKey, input))
-            .then(() => publisherClient.disposePublisher())
-            .then(() => publisherClient.disposePublisher())
-            .then(() => done())
-            .catch(done);
+            await subscriberClient.subscribe(routingKey, callback);
+            await subscriberClient.emit(routingKey, input);
+            await subscriberClient.unsubscribe(routingKey);
+            await subscriberClient.disposeSubscriber();
+            await subscriberClient.disposeSubscriber();
+            await subscriberClient.unsubscribe(routingKey);
+            await publisherClient.emit(routingKey, input);
+            await publisherClient.disposePublisher();
+            await publisherClient.disposePublisher();
         });
     });
 });
