@@ -32,5 +32,5 @@ jobs:
               echo -e "$NPM_USERNAME\n$NPM_PASSWORD\n$NPM_EMAIL" | npm login
               npm publish
               npm run upload-coverage
-              git push
+              git push --set-upstream origin master
             fi
