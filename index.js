@@ -78,7 +78,7 @@ class EventClient
         if(!this.pubChannel)
             this.pubChannel = Promise.resolve(this._getNewChannel());
 
-        return this.pubChannel.then(channel =>
+        return this.pubChannel.then(async channel =>
         {
             const localContext = {
                 senderService : this.serviceName,
@@ -108,10 +108,10 @@ class EventClient
             logger.info(`Emitting event "${topic}"`);
 
             const messageBuffer = Buffer.from(this.config.serializer(transportObj));
-            const result = channel.publish(this.exchangeName, topic, messageBuffer, options);
+            const result = await channel.publish(this.exchangeName, topic, messageBuffer, options);
 
             if(result)
-                return Promise.resolve();
+                return null;
             else
                 return Promise.reject(new Error('Unkown error: Event could not be published.'));
         });
@@ -329,10 +329,13 @@ class EventClient
         }
     }
 
-    async _getNewChannel()
+    async _getNewChannel(onError = () => null)
     {
         const connection = await this._connect();
         const channel = await connection.createChannel();
+
+        channel.on('error', (err) => { this.logger.error(`A channel has been unexpectedly closed: ${err}`); onError(); });
+
         await channel.assertExchange(this.exchangeName, 'topic', { durable: true, autoDelete: false });
 
         return channel;
