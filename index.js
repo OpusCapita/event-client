@@ -9,8 +9,15 @@ const crypto = require('crypto');
 const cachedInstances = { };
 
 /**
+ * Options object for event emmitting.
+ * @typedef {Object} EmitOpts
+ * @property {boolean} mandatory If true, the event will be returned if it is not routed to a queue.
+ * @property {number} expiration Time in milliseconds for an event to last in a queue before it gets removed.
+ */
+
+/**
  * Options object for event subscriptions.
- * @typedef {Object} Opts
+ * @typedef {Object} SubscribeOpts
  * @property {number} messageLimit The maximum amount of unacknowleged messages a single subscription will get at once.
  */
 
@@ -54,7 +61,7 @@ class EventClient
      */
     init()
     {
-        return Promise.resolve(this._getNewChannel()).then(channel => channel.close()).then(() => true);
+        return Promise.resolve(this._getPubChannel()).then(() => true);
     }
 
     /**
@@ -69,16 +76,14 @@ class EventClient
      * @param {string} topic - Full name of a topic.
      * @param {object} message - Payload to be sent to a receiver.
      * @param {object} context - Optional context containing meta data for the receiver of an event.
+     * @param {EmitOpts} opts - Additional options to be set for emmiting an event.
      * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving with null if the subscription succeeded. Otherwise the promise gets rejected with an error.
      */
-    emit(topic, message, context = null)
+    emit(topic, message, context = null, opts = { })
     {
         const logger = new Logger({ context : { serviceName : this.serviceName } });
 
-        if(!this.pubChannel)
-            this.pubChannel = Promise.resolve(this._getNewChannel());
-
-        return this.pubChannel.then(async channel =>
+        return this._getPubChannel().then(async channel =>
         {
             const localContext = {
                 senderService : this.serviceName,
@@ -94,6 +99,7 @@ class EventClient
             const messageId = `${this.serviceName}.${crypto.randomBytes(16).toString('hex')}`;
 
             const options = {
+                ...opts,
                 persistent : true,
                 contentType : this.config.serializerContentType,
                 contentEncoding : 'utf-8',
@@ -128,7 +134,7 @@ class EventClient
      *
      * @param {string} topic - Full name of a topic or a pattern.
      * @param {function} callback - Function to be called when a message for a topic or a pattern arrives.
-     * @param {Opts} opts - Additional options to set for the subscription.
+     * @param {SubscribeOpts} opts - Additional options to set for the subscription.
      * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving with null if the subscription succeeded. Otherwise the promise gets rejected with an error.
      */
     subscribe(topic, callback, opts = { })
@@ -223,7 +229,7 @@ class EventClient
     disposePublisher()
     {
         if(this.pubChannel)
-            return this.pubChannel.then(channel => channel.close()).then(() => this.pubChannel = null).then(() => true);
+            return Promise.resolve(this.pubChannel).then(channel => channel.close()).then(() => this.pubChannel = null).then(() => true);
 
         return Promise.resolve(false);
     }
@@ -334,11 +340,27 @@ class EventClient
         const connection = await this._connect();
         const channel = await connection.createChannel();
 
-        channel.on('error', (err) => { this.logger.error(`A channel has been unexpectedly closed: ${err}`); onError(); });
-
-        await channel.assertExchange(this.exchangeName, 'topic', { durable: true, autoDelete: false });
+        channel.on('error', (err) => { this.logger.error(`A channel has been unexpectedly closed: ${err}`); onError(err); });
 
         return channel;
+    }
+
+    async _createExchange(exchangeName, channel)
+    {
+        return channel.assertExchange(exchangeName, 'topic', { durable: true, autoDelete: false });
+    }
+
+    async _getPubChannel()
+    {
+        if(!this.pubChannel)
+        {
+            const channel = await this._getNewChannel();
+            await this._createExchange(this.exchangeName, channel);
+
+            this.pubChannel = channel;
+        }
+
+        return this.pubChannel;
     }
 
     async _registerConsumner(channel, exchangeName, queueName, topic, callback)
