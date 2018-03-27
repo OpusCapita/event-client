@@ -81,7 +81,7 @@ class EventClient
      */
     emit(topic, message, context = null, opts = { })
     {
-        return Promise.resolve(this._emit(topic, message, context, opts).catch(e => { this.disposePublisher().catch(() => null); return this._emit(topic, message, context, opts); }));
+        return Promise.resolve(this._emit(topic, message, context, opts).catch(e => { this.disposePublisher(); return this._emit(topic, message, context, opts); }));
     }
 
     async _emit(topic, message, context, opts)
@@ -198,6 +198,28 @@ class EventClient
     }
 
     /**
+     * Checks whenever an exchange exists or not. As checking for non existing exchnages provokes server errors (404) that will destroy the communication channel and log an error, this method should
+     * not be called excessively.
+     * @param {string} exchangeName - The name of the exchange to find.
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving with true or false depending on whenever the exchange exists.
+     */
+    exchangeExists(exchangeName)
+    {
+        return Promise.resolve(this._getPubChannel().then(channel => channel.checkQueue(queueName)).then(() => true).catch(() => this.disposePublisher().then(() => false)));
+    }
+
+    /**
+     * Checks whenever a queue exists or not. As checking for non existing queues provokes server errors (404) that will destroy the communication channel and log an error, this method should
+     * not be called excessively.
+     * @param {string} queueName - The name of the queue to find.
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving with true or false depending on whenever the queue exists.
+     */
+    queueExists(queueName)
+    {
+        return Promise.resolve(this._getPubChannel().then(channel => channel.checkQueue(queueName)).then(() => true).catch(() => this.disposePublisher().then(() => false)));
+    }
+
+    /**
      * This method allows you to unsubscribe from a previous subscribed *topic* or pattern.
      *
      * @param {string} topic - Full name of a topic or a pattern.
@@ -212,7 +234,7 @@ class EventClient
         {
             return channel.then(async channel =>
             {
-                await channel.cancel(subscription);
+                await channel.cancel(subscription).catch(() => null);
 
                 delete this.subscriptions[topic];
                 delete this.callbacks[this._findCallbackKey(topic)];
@@ -231,7 +253,7 @@ class EventClient
     disposePublisher()
     {
         if(this.pubChannel)
-            return Promise.resolve(this.pubChannel).then(channel => channel.close()).then(() => this.pubChannel = null).then(() => true);
+            return Promise.resolve(this.pubChannel).then(channel => channel.close()).catch(() => null).finally(() => this.pubChannel = null).then(() => true);
 
         return Promise.resolve(false);
     }
@@ -245,7 +267,7 @@ class EventClient
         const all = [ ];
 
         for(const key in this.subChannels)
-            all.push(this.subChannels[key].then(channel => channel.close()));
+            all.push(this.subChannels[key].then(channel => channel.close().catch(() => null)));
 
         if(all.length)
             return Promise.all(all).then(() => { this.subChannels = { }; this.callbacks = { } }).then(() => true);
