@@ -81,46 +81,48 @@ class EventClient
      */
     emit(topic, message, context = null, opts = { })
     {
+        return Promise.resolve(this._emit(topic, message, context, opts).catch(e => { this.disposePublisher().catch(() => null); return this._emit(topic, message, context, opts); }));
+    }
+
+    async _emit(topic, message, context, opts)
+    {
         const logger = new Logger({ context : { serviceName : this.serviceName } });
 
-        return this._getPubChannel().then(async channel =>
-        {
-            const localContext = {
-                senderService : this.serviceName,
-                timestamp : new Date().toString()
-            };
+        const localContext = {
+            senderService : this.serviceName,
+            timestamp : new Date().toString()
+        };
 
-            const transportObj = {
-                topic : topic,
-                context : extend(true, { }, this.config.context, context, localContext),
-                payload : message
-            };
+        const transportObj = {
+            topic : topic,
+            context : extend(true, { }, this.config.context, context, localContext),
+            payload : message
+        };
 
-            const messageId = `${this.serviceName}.${crypto.randomBytes(16).toString('hex')}`;
+        const messageId = `${this.serviceName}.${crypto.randomBytes(16).toString('hex')}`;
 
-            const options = {
-                ...opts,
-                persistent : true,
-                contentType : this.config.serializerContentType,
-                contentEncoding : 'utf-8',
-                timestamp : Math.floor(Date.now() / 1000),
-                correlationId : context && context.correlationId,
-                appId : this.serviceName,
-                messageId : messageId,
-                headers : transportObj.context
-            }
+        const options = {
+            ...opts,
+            persistent : true,
+            contentType : this.config.serializerContentType,
+            contentEncoding : 'utf-8',
+            timestamp : Math.floor(Date.now() / 1000),
+            correlationId : context && context.correlationId,
+            appId : this.serviceName,
+            messageId : messageId,
+            headers : transportObj.context
+        }
 
-            logger.contextify(extend(true, { }, transportObj.context, options));
-            logger.info(`Emitting event "${topic}"`);
+        logger.contextify(extend(true, { }, transportObj.context, options));
+        logger.info(`Emitting event "${topic}"`);
 
-            const messageBuffer = Buffer.from(this.config.serializer(transportObj));
-            const result = await channel.publish(this.exchangeName, topic, messageBuffer, options);
+        const messageBuffer = Buffer.from(this.config.serializer(transportObj));
+        const result = await (await this._getPubChannel()).publish(this.exchangeName, topic, messageBuffer, options);
 
-            if(result)
-                return null;
-            else
-                return Promise.reject(new Error('Unkown error: Event could not be published.'));
-        });
+        if(result)
+            return null;
+        else
+            throw new Error('Unkown error: Event could not be published.');
     }
 
     /**
