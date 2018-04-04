@@ -1,6 +1,6 @@
 const EventClient = require('../index');
 const Promise = require('bluebird');
-const configService = require('ocbesbn-config');
+const configService = require('@opuscapita/config');
 const assert = require('assert');
 
 const waitForService = (serviceName) => configService.getEndPoint(serviceName).catch(e => waitForService(serviceName));
