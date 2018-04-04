@@ -1,5 +1,5 @@
 const extend = require('extend');
-const configService = require('ocbesbn-config');
+const configService = require('@opuscapita/config');
 const Promise = require('bluebird');
 const retry = require('bluebird-retry');
 const amqp = require('amqplib');
@@ -452,7 +452,7 @@ class EventClient
 * @property {object} parser - Function to use for deserializing messages received.
 * @property {string} serializerContentType - Content type of the serialized message added as a meta data field to each event emitted.
 * @property {string} parserContentType - Content type for which events should be received and parsed using the configured parser.
-* @property {string} queueName - Name of the queue to connect to. By default this is the service name as of [ocbesbn-config](https://github.com/OpusCapita/config/wiki#module_ocbesbn-config.serviceName).
+* @property {string} queueName - Name of the queue to connect to. By default this is the service name as of [@opuscapita/config](https://github.com/OpusCapita/config/wiki#serviceName).
 * @property {string} exchangeName - The name of the exchnage to emit events to. By default this is the name of the service as from [@opuscapita/config](https://github.com/OpusCapita/config/wiki#serviceName).
 * @property {object} consul - Object for configuring consul related parameters.
 * @property {string} consul.host - Hostname of a consul server.
