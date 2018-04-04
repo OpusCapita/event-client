@@ -453,6 +453,7 @@ class EventClient
 * @property {string} serializerContentType - Content type of the serialized message added as a meta data field to each event emitted.
 * @property {string} parserContentType - Content type for which events should be received and parsed using the configured parser.
 * @property {string} queueName - Name of the queue to connect to. By default this is the service name as of [ocbesbn-config](https://github.com/OpusCapita/config/wiki#module_ocbesbn-config.serviceName).
+* @property {string} exchangeName - The name of the exchnage to emit events to. By default this is the name of the service as from [@opuscapita/config](https://github.com/OpusCapita/config/wiki#serviceName).
 * @property {object} consul - Object for configuring consul related parameters.
 * @property {string} consul.host - Hostname of a consul server.
 * @property {string} consul.mqServiceName - Name of the endpoint for the message queue server in consul.
@@ -471,6 +472,7 @@ EventClient.DefaultConfig = {
     serializerContentType : 'application/json',
     parserContentType : 'application/json',
     queueName : null,
+    exchangeName : null,
     consul : {
         host : 'consul',
         mqServiceName  : 'rabbitmq-amqp',

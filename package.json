@@ -22,11 +22,11 @@
   "author": "Christian Drengenberg <christian.drengenberg@opuscapita.com>",
   "license": "MIT",
   "dependencies": {
+    "@opuscapita/config": "^3.0.2",
     "amqplib": "^0.5.2",
     "bluebird": "^3.5.1",
     "bluebird-retry": "^0.11.0",
     "extend": "^3.0.1",
-    "ocbesbn-config": "^2.3.3",
     "ocbesbn-logger": "^1.0.5"
   },
   "devDependencies": {
