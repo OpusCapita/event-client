@@ -451,7 +451,7 @@ class EventClient
 
         for(const key in this.callbacks)
         {
-            const exp = new RegExp('^' + key.replace('*', '[^\.]+$').replace('#', '([^\.]+)+$'));
+            const exp = new RegExp('^' + key.replace('.*', '(\.[^\.]+)+').replace('.#', '(\.[^\.]+)?'));
 
             if(topic.match(exp))
                 return key;
