@@ -49,6 +49,7 @@ class EventClient
         this.exchangeName = this.config.exchangeName || this.serviceName;
         this.queueName = this.config.queueName || this.serviceName;
         this.logger = new Logger({ context : { serviceName : this.serviceName } });
+        this.callbackErrorCount = { };
 
         cachedInstances[cacheKey] = this;
     }
@@ -180,14 +181,32 @@ class EventClient
                     }
                     else
                     {
-                        logger.error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
-                        throw new Error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
+                        this._incrementCallbackErrors();
+
+                        if(this.callbackErrorCount[topic] >= 30)
+                        {
+                            logger.error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}. Sending event to nirvana.`);
+                        }
+                        else
+                        {
+                            logger.error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
+                            throw new Error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
+                        }
                     }
                 }
                 else
                 {
-                    logger.info(`There is no subscriber for topic "${topic}"`);
-                    throw new Error(`There is no subscriber for topic "${topic}"`);
+                    this._incrementCallbackErrors();
+
+                    if(this.callbackErrorCount[topic] >= 30)
+                    {
+                        logger.info(`There is no subscriber for topic "${topic}". Sending event to nirvana.`);
+                    }
+                    else
+                    {
+                        logger.info(`There is no subscriber for topic "${topic}".`);
+                        throw new Error(`There is no subscriber for topic "${topic}".`);
+                    }
                 }
             });
 
@@ -238,6 +257,7 @@ class EventClient
 
                 delete this.subscriptions[topic];
                 delete this.callbacks[this._findCallbackKey(topic)];
+                delete this.callbackErrorCount[topic];
 
                 return true;
             });
@@ -270,7 +290,7 @@ class EventClient
             all.push(this.subChannels[key].then(channel => channel.close().catch(() => null)));
 
         if(all.length)
-            return Promise.all(all).then(() => { this.subChannels = { }; this.callbacks = { } }).then(() => true);
+            return Promise.all(all).then(() => { this.subChannels = { }; this.callbacks = { }; this.callbackErrorCount = { } }).then(() => true);
 
         return Promise.resolve(false);
     }
@@ -442,6 +462,14 @@ class EventClient
     {
         const key = this._findCallbackKey(topic);
         return key && this.callbacks[key];
+    }
+
+    _incrementCallbackErrors(topic)
+    {
+        if(this.callbackErrorCount[topic])
+            this.callbackErrorCount[topic]++;
+        else
+            this.callbackErrorCount[topic] = 1;
     }
 }
 
