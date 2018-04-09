@@ -181,7 +181,7 @@ class EventClient
                     }
                     else
                     {
-                        this._incrementCallbackErrors();
+                        this._incrementCallbackErrors(topic);
 
                         if(this.callbackErrorCount[topic] >= 30)
                         {
@@ -196,7 +196,7 @@ class EventClient
                 }
                 else
                 {
-                    this._incrementCallbackErrors();
+                    this._incrementCallbackErrors(topic);
 
                     if(this.callbackErrorCount[topic] >= 30)
                     {
