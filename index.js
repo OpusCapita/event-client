@@ -162,7 +162,7 @@ class EventClient
                 const callback = this._findCallback(routingKey);
                 const logger = new Logger({ context : { serviceName : this.serviceName } });
 
-                logger.info(`Receiving event for topic "${topic}"`);
+                logger.info(`Receiving event for registered topic "${topic}" with routing key "${routingKey}".`);
 
                 if(callback)
                 {
