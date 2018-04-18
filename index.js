@@ -57,9 +57,6 @@ class EventClient
         this.logger = new Logger({ context : { serviceName : this.serviceName } });
         this.callbackErrorCount = { };
 
-        if(!this.queueName)
-            throw new Error('Required configuration value "queueName" has not been provided.');
-
         cachedInstances[cacheKey] = this;
     }
 
@@ -152,7 +149,7 @@ class EventClient
     subscribe(topic, callback, opts = { })
     {
         if(this.hasSubscription(topic))
-            Promise.reject(new Error(`The topic "${topic}" is already registered.`));
+            return Promise.reject(new Error(`The topic "${topic}" has already been registered.`));
 
         const channel = Promise.resolve(this._getNewChannel());
         this.subChannels[topic] = channel;
@@ -165,8 +162,9 @@ class EventClient
             this._addCallback(topic, callback);
 
             const exchangeName = topic.substr(0, topic.indexOf('.'));
+            const queueName = this.queueName ? this.queueName : `${this.serviceName}-${topic}`;
 
-            const consumer = await this._registerConsumner(channel, exchangeName, this.queueName, topic, message =>
+            const consumer = await this._registerConsumner(channel, exchangeName, queueName, topic, message =>
             {
                 const routingKey = message.fields.routingKey;
                 const callback = this._findCallback(routingKey);
@@ -319,7 +317,7 @@ class EventClient
             all.push(this.subChannels[key].then(channel => channel.close().catch(() => null)));
 
         if(all.length)
-            return Promise.all(all).then(() => { this.subChannels = { }; this.callbacks = { }; this.callbackErrorCount = { } }).then(() => true);
+            return Promise.all(all).then(() => { this.subChannels = { }; this.callbacks = { }; this.callbackErrorCount = { }; this.subscriptions = { }; }).then(() => true);
 
         return Promise.resolve(false);
     }

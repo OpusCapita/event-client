@@ -163,6 +163,7 @@ describe('Main', () =>
 
             await publisherClient.emit(routingKey, input);
             await sleep(2000);
+            await subscriberClient.unsubscribe(routingPattern);
 
             assert.equal(iterator, 1);
             assert.deepEqual(output, input);
@@ -182,6 +183,7 @@ describe('Main', () =>
             await publisherClient.emit(routingKey, input);
             await publisherClient.disposePublisher();
             await publisherClient.disposePublisher();
+            await subscriberClient.subscribe(routingKey, callback);
         });
 
         it('Dispose test 2', async () =>
@@ -202,6 +204,7 @@ describe('Main', () =>
             await publisherClient.emit(routingKey, input);
             await publisherClient.disposePublisher();
             await publisherClient.disposePublisher();
+            await subscriberClient.subscribe(routingKey, callback);
         });
     });
 });
