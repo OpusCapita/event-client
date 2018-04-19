@@ -5,6 +5,7 @@ const retry = require('bluebird-retry');
 const amqp = require('amqplib');
 const Logger = require('ocbesbn-logger');
 const crypto = require('crypto');
+const EventError = require('./EventError');
 
 const cachedInstances = { };
 
@@ -129,7 +130,7 @@ class EventClient
         if(result)
             return null;
         else
-            throw new Error('Unkown error: Event could not be published.');
+            throw new EventError('Unkown error: Event could not be published.', 500);
     }
 
     /**
@@ -149,7 +150,7 @@ class EventClient
     subscribe(topic, callback, opts = { })
     {
         if(this.hasSubscription(topic))
-            return Promise.reject(new Error(`The topic "${topic}" has already been registered.`));
+            return Promise.reject(new EventError(`The topic "${topic}" has already been registered.`, 409));
 
         const channel = Promise.resolve(this._getNewChannel());
         this.subChannels[topic] = channel;
@@ -162,7 +163,7 @@ class EventClient
             this._addCallback(topic, callback);
 
             const exchangeName = topic.substr(0, topic.indexOf('.'));
-            const queueName = this.queueName ? this.queueName : `${this.serviceName}-${topic}`;
+            const queueName = this.getQueueName(topic);
 
             const consumer = await this._registerConsumner(channel, exchangeName, queueName, topic, message =>
             {
@@ -184,36 +185,38 @@ class EventClient
                         logger.contextify(extend(true, { }, result.context, message.properties));
                         logger.info(`Passing event "${result.topic}" to application.`);
 
-                        return callback(result.payload, result.context, result.topic);
+                        try
+                        {
+                            return callback(result.payload, result.context, result.topic);
+                        }
+                        catch(e)
+                        {
+                            this._incrementCallbackErrors(topic);
+
+                            if(this.callbackErrorCount[topic] >= 32)
+                                throw new EventError(`Processing the topic "${topic}" did not succeed after several tries.`, 500);
+                            else
+                                throw e;
+                        }
                     }
                     else
                     {
                         this._incrementCallbackErrors(topic);
 
-                        if(this.callbackErrorCount[topic] >= 30)
-                        {
-                            logger.error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}. Sending event to nirvana.`);
-                        }
+                        if(this.callbackErrorCount[topic] >= 32)
+                            throw new EventError(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}. Sending event to nirvana.`, 500);
                         else
-                        {
-                            logger.error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
-                            throw new Error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
-                        }
+                            throw new EventError(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`, 406);
                     }
                 }
                 else
                 {
                     this._incrementCallbackErrors(topic);
 
-                    if(this.callbackErrorCount[topic] >= 30)
-                    {
-                        logger.info(`There is no subscriber for topic "${topic}". Sending event to nirvana.`);
-                    }
+                    if(this.callbackErrorCount[topic] >= 32)
+                        throw new EventError(`There is no subscriber for topic "${topic}". Sending event to nirvana.`, 500);
                     else
-                    {
-                        logger.info(`There is no subscriber for topic "${topic}".`);
-                        throw new Error(`There is no subscriber for topic "${topic}".`);
-                    }
+                        throw new EventError(`There is no subscriber for topic "${topic}".`, 406);
                 }
             });
 
@@ -345,6 +348,11 @@ class EventClient
         return typeof this.subscriptions[topic] !== 'undefined';
     }
 
+    getQueueName(topic = null)
+    {
+        return this.queueName ? this.queueName : `${this.serviceName}/${topic}`
+    }
+
     async _connect()
     {
         if(this.connection)
@@ -387,8 +395,7 @@ class EventClient
                     hostname : props.endpoint.host,
                     port : props.endpoint.port,
                     username : props.username,
-                    password : props.password,
-                    heartbeat : 60
+                    password : props.password
                 });
             }, { max_tries: 60, interval: 500, timeout : 120000, backoff : 1.5 });
 
@@ -416,9 +423,9 @@ class EventClient
         return channel;
     }
 
-    async _createExchange(exchangeName, channel)
+    async _createExchange(exchangeName, channel, type = 'topic')
     {
-        return channel.assertExchange(exchangeName, 'topic', { durable: true, autoDelete: false });
+        return channel.assertExchange(exchangeName, type, { durable: true, autoDelete: false });
     }
 
     async _getPubChannel()
@@ -427,6 +434,10 @@ class EventClient
         {
             const channel = await this._getNewChannel();
             await this._createExchange(this.exchangeName, channel);
+            await this._createExchange(`${this.exchangeName}.dead`, channel, 'fanout');
+
+            await channel.assertQueue(`${this.exchangeName}-dead`, { durable: true, autoDelete: false });
+            await retry(() => channel.bindQueue(`${this.exchangeName}-dead`, `${this.exchangeName}.dead`, ''), { max_tries : 60, interval : 500, timeout : 120000, backoff : 1.5 });
 
             this.pubChannel = channel;
         }
@@ -436,7 +447,7 @@ class EventClient
 
     async _registerConsumner(channel, exchangeName, queueName, topic, callback)
     {
-        await channel.assertQueue(queueName, { durable: true, autoDelete: false });
+        await channel.assertQueue(queueName, { durable: true, autoDelete: false, arguments : { 'x-dead-letter-exchange' : `${exchangeName}-dead` } });
         await retry(() => channel.bindQueue(queueName, exchangeName, topic), { max_tries : 60, interval : 500, timeout : 120000, backoff : 1.5 });
 
         return await channel.consume(queueName, async message =>
@@ -444,18 +455,12 @@ class EventClient
             try
             {
                 const result = await Promise.resolve(callback(message));
-                await (result === false ? channel.nack(message) : channel.ack(message));
+                result === false ? channel.nack(message) : channel.ack(message);
             }
             catch(e)
             {
                 this.logger.warn(e);
-
-                try
-                {
-                    await channel.nack(message);
-                }
-                catch(e)
-                {}
+                channel.nack(message, false, false);
             }
         });
     }
