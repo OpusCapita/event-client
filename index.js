@@ -401,12 +401,13 @@ class EventClient
         }
     }
 
-    async _getNewChannel(onError = () => null)
+    async _getNewChannel({ onError = () => null, onClose = () => null } = { })
     {
         const connection = await this._connect();
         const channel = await connection.createChannel();
 
         channel.on('error', (err) => { this.logger.error(`A channel has been unexpectedly closed: ${err}`); onError(err); });
+        channel.on('close', () => this.logger.info('A channel has been closed.'));
 
         return channel;
     }
