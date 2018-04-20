@@ -18,7 +18,7 @@ describe('Main', () =>
         return waitForService('rabbitmq-amqp');
     });
 
-    describe('#init()', () =>
+    describe('main', () =>
     {
         const consulOverride = { };
 
@@ -63,9 +63,10 @@ describe('Main', () =>
                     subscriberClient.unsubscribe(routingKey).then(() => done()).catch(done);
                 })
                 .then(() => publisherClient.emit(routingKey, input))
+                .then(() => assert(subscriberClient.exchangeExists('event-client'), true))
             })
             .catch(done);
-        })
+        });
 
 
         it('Simple_Connection_With_ACK', (done) =>
@@ -163,6 +164,11 @@ describe('Main', () =>
 
             await publisherClient.emit(routingKey, input);
             await sleep(2000);
+            await subscriberClient.unsubscribe(routingPattern);
+
+            assert.equal(await subscriberClient.queueExists(subscriberClient.getQueueName(routingPattern)), true);
+            await subscriberClient.deleteQueue(subscriberClient.getQueueName(routingPattern));
+            assert.equal(await subscriberClient.queueExists(subscriberClient.getQueueName(routingPattern)), false);
 
             assert.equal(iterator, 1);
             assert.deepEqual(output, input);
@@ -178,10 +184,12 @@ describe('Main', () =>
             const callback = (payload) => assert.deepEqual(payload, input);
 
             await subscriberClient.subscribe(routingKey, callback);
+            await subscriberClient.subscribe(routingKey, callback).catch(e => null);
             await subscriberClient.disposeSubscriber();
             await publisherClient.emit(routingKey, input);
             await publisherClient.disposePublisher();
             await publisherClient.disposePublisher();
+            await subscriberClient.subscribe(routingKey, callback);
         });
 
         it('Dispose test 2', async () =>
@@ -202,6 +210,29 @@ describe('Main', () =>
             await publisherClient.emit(routingKey, input);
             await publisherClient.disposePublisher();
             await publisherClient.disposePublisher();
+            await subscriberClient.subscribe(routingKey, callback);
         });
+
+        it('Dead letter test', async () =>
+        {
+            const client = new EventClient();
+
+            const routingKey = 'event-client.Test';
+            const input = { message: 'Simple_Test' };
+
+            await client.init();
+            await client.subscribe(routingKey, (payload, context, key) =>
+            {
+                throw new Error('Empty');
+            });
+
+            const all = [ ];
+
+            for(let i = 0; i < 1000; i++)
+                all.push(client.emit(routingKey));
+
+            await Promise.all(all);
+            await sleep(1000);
+        })
     });
 });

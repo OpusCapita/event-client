@@ -5,6 +5,7 @@ const retry = require('bluebird-retry');
 const amqp = require('amqplib');
 const Logger = require('ocbesbn-logger');
 const crypto = require('crypto');
+const EventError = require('./EventError');
 
 const cachedInstances = { };
 
@@ -48,7 +49,7 @@ class EventClient
 
         this.connection = null;
         this.pubChannel = null;
-        this.subChannels = { };
+        this.subChannel = null;
         this.subscriptions = { };
         this.callbacks = { };
         this.serviceName = configService.serviceName;
@@ -56,9 +57,6 @@ class EventClient
         this.queueName = this.config.queueName;
         this.logger = new Logger({ context : { serviceName : this.serviceName } });
         this.callbackErrorCount = { };
-
-        if(!this.queueName)
-            throw new Error('Required configuration value "queueName" has not been provided.');
 
         cachedInstances[cacheKey] = this;
     }
@@ -132,7 +130,7 @@ class EventClient
         if(result)
             return null;
         else
-            throw new Error('Unkown error: Event could not be published.');
+            throw new EventError('Unkown error: Event could not be published.', 500);
     }
 
     /**
@@ -151,78 +149,65 @@ class EventClient
      */
     subscribe(topic, callback, opts = { })
     {
-        if(this.hasSubscription(topic))
-            Promise.reject(new Error(`The topic "${topic}" is already registered.`));
-
-        const channel = Promise.resolve(this._getNewChannel());
-        this.subChannels[topic] = channel;
-
-        return channel.then(async channel =>
+        return Promise.resolve((async () =>
         {
-            if(opts && opts.messageLimit)
-                await channel.prefetch(opts.messageLimit);
+            if(this.hasSubscription(topic))
+                throw new EventError(`The topic "${topic}" has already been registered.`, 409);
 
-            this._addCallback(topic, callback);
+            const channel = await this._getSubChannel();
+
+            if(opts && opts.messageLimit)
+                await channel.prefetch(opts.messageLimit, false);
 
             const exchangeName = topic.substr(0, topic.indexOf('.'));
+            const queueName = this.getQueueName(topic);
 
-            const consumer = await this._registerConsumner(channel, exchangeName, this.queueName, topic, message =>
+            const consumer = await this._registerConsumner(channel, exchangeName, queueName, topic, message =>
             {
                 const routingKey = message.fields.routingKey;
-                const callback = this._findCallback(routingKey);
                 const logger = new Logger({ context : { serviceName : this.serviceName } });
 
                 logger.info(`Receiving event for registered topic "${topic}" with routing key "${routingKey}".`);
 
-                if(callback)
+                if(message.properties.contentType === this.config.parserContentType)
                 {
-                    if(message.properties.contentType === this.config.parserContentType)
+                    const result = this.config.parser(message.content);
+
+                    if(message.properties.headers)
+                        result.context = message.properties.headers;
+
+                    logger.contextify(extend(true, { }, result.context, message.properties));
+                    logger.info(`Passing event "${result.topic}" to application.`);
+
+                    try
                     {
-                        const result = this.config.parser(message.content);
-
-                        if(message.properties.headers)
-                            result.context = message.properties.headers;
-
-                        logger.contextify(extend(true, { }, result.context, message.properties));
-                        logger.info(`Passing event "${result.topic}" to application.`);
-
                         return callback(result.payload, result.context, result.topic);
                     }
-                    else
+                    catch(e)
                     {
                         this._incrementCallbackErrors(topic);
 
-                        if(this.callbackErrorCount[topic] >= 30)
-                        {
-                            logger.error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}. Sending event to nirvana.`);
-                        }
+                        if(this.callbackErrorCount[topic] >= 32)
+                            throw new EventError(`Processing the topic "${topic}" did not succeed after several tries.`, 500);
                         else
-                        {
-                            logger.error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
-                            throw new Error(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`);
-                        }
+                            throw e;
                     }
                 }
                 else
                 {
                     this._incrementCallbackErrors(topic);
 
-                    if(this.callbackErrorCount[topic] >= 30)
-                    {
-                        logger.info(`There is no subscriber for topic "${topic}". Sending event to nirvana.`);
-                    }
+                    if(this.callbackErrorCount[topic] >= 32)
+                        throw new EventError(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}. Sending event to nirvana.`, 500);
                     else
-                    {
-                        logger.info(`There is no subscriber for topic "${topic}".`);
-                        throw new Error(`There is no subscriber for topic "${topic}".`);
-                    }
+                        throw new EventError(`Cannot parse incoming message due to an incompatible content type. Expected: ${this.config.parserContentType} - Actual: ${message.contentType}.`, 406);
                 }
             });
 
             this.subscriptions[topic] = consumer.consumerTag;
 
             return null;
-        });
+        })());
     }
 
     /**
@@ -275,21 +260,20 @@ class EventClient
      */
     unsubscribe(topic)
     {
-        const channel = this.subChannels[topic];
+        const channel = this.subChannel;
         const subscription = this.subscriptions[topic];
 
         if(channel && subscription)
         {
-            return channel.then(async channel =>
+            return Promise.resolve((async () =>
             {
                 await channel.cancel(subscription).catch(() => null);
 
                 delete this.subscriptions[topic];
-                delete this.callbacks[this._findCallbackKey(topic)];
                 delete this.callbackErrorCount[topic];
 
                 return true;
-            });
+            })());
         }
 
         return Promise.resolve(false);
@@ -313,13 +297,18 @@ class EventClient
      */
     disposeSubscriber()
     {
-        const all = [ ];
+        if(this.subChannel)
+        {
+            return Promise.resolve((async () =>
+            {
+                await this.subChannel.close().catch(() => null);
+                this.subChannel = null;
+                this.callbackErrorCount = { };
+                this.subscriptions = { };
 
-        for(const key in this.subChannels)
-            all.push(this.subChannels[key].then(channel => channel.close().catch(() => null)));
-
-        if(all.length)
-            return Promise.all(all).then(() => { this.subChannels = { }; this.callbacks = { }; this.callbackErrorCount = { } }).then(() => true);
+                return true;
+            })());
+        }
 
         return Promise.resolve(false);
     }
@@ -345,6 +334,11 @@ class EventClient
     hasSubscription(topic)
     {
         return typeof this.subscriptions[topic] !== 'undefined';
+    }
+
+    getQueueName(topic = null)
+    {
+        return this.queueName ? this.queueName : `${this.serviceName}/${topic}`
     }
 
     async _connect()
@@ -389,8 +383,7 @@ class EventClient
                     hostname : props.endpoint.host,
                     port : props.endpoint.port,
                     username : props.username,
-                    password : props.password,
-                    heartbeat : 60
+                    password : props.password
                 });
             }, { max_tries: 60, interval: 500, timeout : 120000, backoff : 1.5 });
 
@@ -418,9 +411,9 @@ class EventClient
         return channel;
     }
 
-    async _createExchange(exchangeName, channel)
+    async _createExchange(exchangeName, channel, type = 'topic')
     {
-        return channel.assertExchange(exchangeName, 'topic', { durable: true, autoDelete: false });
+        return channel.assertExchange(exchangeName, type, { durable: true, autoDelete: false });
     }
 
     async _getPubChannel()
@@ -429,6 +422,10 @@ class EventClient
         {
             const channel = await this._getNewChannel();
             await this._createExchange(this.exchangeName, channel);
+            await this._createExchange(`${this.exchangeName}.dead`, channel, 'fanout');
+
+            await channel.assertQueue(`${this.exchangeName}.dead`, { durable: true, autoDelete: false });
+            await retry(() => channel.bindQueue(`${this.exchangeName}.dead`, `${this.exchangeName}.dead`, ''), { max_tries : 60, interval : 500, timeout : 120000, backoff : 1.5 });
 
             this.pubChannel = channel;
         }
@@ -436,9 +433,14 @@ class EventClient
         return this.pubChannel;
     }
 
+    async _getSubChannel()
+    {
+        return this.subChannel || (this.subChannel = await this._getNewChannel());
+    }
+
     async _registerConsumner(channel, exchangeName, queueName, topic, callback)
     {
-        await channel.assertQueue(queueName, { durable: true, autoDelete: false });
+        await channel.assertQueue(queueName, { durable: true, autoDelete: false, arguments : { 'x-dead-letter-exchange' : `${exchangeName}.dead` } });
         await retry(() => channel.bindQueue(queueName, exchangeName, topic), { max_tries : 60, interval : 500, timeout : 120000, backoff : 1.5 });
 
         return await channel.consume(queueName, async message =>
@@ -446,51 +448,14 @@ class EventClient
             try
             {
                 const result = await Promise.resolve(callback(message));
-                await (result === false ? channel.nack(message) : channel.ack(message));
+                result === false ? channel.nack(message) : channel.ack(message);
             }
             catch(e)
             {
-                this.logger.warn(e);
-
-                try
-                {
-                    await channel.nack(message);
-                }
-                catch(e)
-                {}
+                this.logger.warn('Sending event to dead queue.', e);
+                channel.nack(message, false, e.code !== 500);
             }
         });
-    }
-
-    _addCallback(topic, callback)
-    {
-        this.callbacks[topic] = callback;
-
-        const keys = Object.keys(this.callbacks).sort().reverse();
-        const temp = { };
-
-        keys.forEach(k => temp[k] = this.callbacks[k]);
-        this.callbacks = temp;
-    }
-
-    _findCallbackKey(topic)
-    {
-        if(this.callbacks[topic])
-            return topic
-
-        for(const key in this.callbacks)
-        {
-            const exp = new RegExp('^' + key.replace(/\.\*/g, '(\.[^\.]+)').replace(/\.#/g, '(\.[^\.]+)?') + '$');
-
-            if(topic.match(exp))
-                return key;
-        }
-    }
-
-    _findCallback(topic)
-    {
-        const key = this._findCallbackKey(topic);
-        return key && this.callbacks[key];
     }
 
     _incrementCallbackErrors(topic)
