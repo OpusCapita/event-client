@@ -336,9 +336,25 @@ class EventClient
         return typeof this.subscriptions[topic] !== 'undefined';
     }
 
+    /**
+     * Depending on the configuration of the EventClient object, this method returns a configured queue name or a constructed name for the passed topic.
+     *
+     * @param {string} topic - Full name of a topic or a pattern.
+     * @returns {string} Name of a queue.
+     */
     getQueueName(topic = null)
     {
         return this.queueName ? this.queueName : `${this.serviceName}/${topic}`
+    }
+
+    /**
+     * Closes all publisher and subscriber channels and connections.
+     *
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to true or rejecting with an error.
+     */
+    dispose()
+    {
+        return Promise.all([ this.disposePublisher(), this.disposeSubscriber() ]).then(() => this.connection = null).then(() => true);
     }
 
     async _connect()
@@ -387,10 +403,10 @@ class EventClient
                 });
             }, { max_tries: 60, interval: 500, timeout : 120000, backoff : 1.5 });
 
-            this.connection.on('error', err => this.logger.warn('Error on connection.', err));
-            this.connection.on('blocked', err => this.logger.warn('Blocked connection.', err));
-            this.connection.on('unblocked', () => this.logger.warn('Unblocked connection.'));
-            this.connection.on('close', () => this.logger.warn('Closed connection.'));
+            this.connection.on('error', err => { this.logger.warn('Error on connection.', err); this.dispose(); });
+            this.connection.on('blocked', err => { this.logger.warn('Blocked connection.', err); this.dispose(); });
+            this.connection.on('unblocked', () => { this.logger.warn('Unblocked connection.'); this.dispose(); });
+            this.connection.on('close', () => { this.logger.warn('Closed connection.'); this.dispose(); });
 
             return this.connection;
         }

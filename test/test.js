@@ -190,6 +190,7 @@ describe('Main', () =>
             await publisherClient.disposePublisher();
             await publisherClient.disposePublisher();
             await subscriberClient.subscribe(routingKey, callback);
+            await subscriberClient.dispose();
         });
 
         it('Dispose test 2', async () =>
@@ -211,6 +212,28 @@ describe('Main', () =>
             await publisherClient.disposePublisher();
             await publisherClient.disposePublisher();
             await subscriberClient.subscribe(routingKey, callback);
+            await subscriberClient.dispose();
+        });
+
+        it('Dispose test 3', async () =>
+        {
+            const client = new EventClient({ queueName : 'test' });
+            const routingKey = 'event-client.dispose';
+            const input = { message : 'Gone!' };
+
+            let emitCount = 0;
+            const callback = (payload) => { assert.deepEqual(payload, input); emitCount++ }
+
+            await client.subscribe(routingKey, callback);
+            await client.emit(routingKey, input);
+            await sleep(2000);
+            await client.dispose();
+            await client.subscribe(routingKey, callback);
+            await client.emit(routingKey, input);
+            await sleep(2000);
+            await client.dispose();
+
+            assert.equal(emitCount, 2);
         });
 
         it('Dead letter test', async () =>
