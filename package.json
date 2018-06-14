@@ -15,7 +15,7 @@
     "test-raw": "npm run clean ; npm run setup-consul ; npx nyc mocha --timeout 50000 --recursive",
     "test-coverage": "npm run clean ; npm run setup-consul ; npx nyc --reporter=lcov mocha --timeout 50000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
     "upload-coverage": "cat ./coverage/lcov.info | npx coveralls",
-    "api-doc": "npx jsdoc2md index.js > wiki/Home.md",
+    "api-doc": "npx jsdoc2md --files ./lib/* > wiki/Home.md",
     "doc": "npm run api-doc",
     "prepublishOnly": "npm version patch -m 'Version set to %s. [skip ci]'"
   },
