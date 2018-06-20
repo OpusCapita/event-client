@@ -1,5 +1,6 @@
 const assert = require('assert');
 const configService = require('@opuscapita/config');
+const Logger = require('ocbesbn-logger');
 const { EventClient } = require('../lib');
 
 const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
@@ -8,12 +9,9 @@ describe('Main', () =>
 {
     const consulOverride = { };
 
-    /**
-    * Check rabbitMQ is ready
-    */
-    before('ACL connection', async () =>
+    before('Init', async () =>
     {
-        await configService.init();
+        await configService.init({ logger : Logger.DummyLogger });
         const config = EventClient.DefaultConfig.consul;
         const endpoint = await configService.getEndPoint(config.mqServiceName);
         const username = config.mqUserKey && await configService.get(config.mqUserKey);
@@ -25,21 +23,9 @@ describe('Main', () =>
         consulOverride.password = password;
     });
 
-    /*it('Blupp 1', async () =>
-    {
-        const client = new EventClient();
-        await client.init();
-
-        assert.equal(await client.queueExists('nix').catch(e => null), false);
-        await client.subscribe('event-client.shit', console.log);
-        await client.emit('event-client.shit', { truth : 42 });
-
-        await sleep(5000);
-    });*/
-
     it('Simple test (1 client)', async () =>
     {
-        const client = new EventClient({ context : { nix : 1 } });
+        const client = new EventClient({ logger : Logger.DummyLogger, context : { nix : 1 } });
 
         client.contextify({ truth : 42 });
 
@@ -71,12 +57,56 @@ describe('Main', () =>
         assert.equal(result.key, routingKey);
 
         assert.equal(await client.unsubscribe(routingKey), true);
+
+        await client.dispose();
+    });
+
+    it('Simple test (reconnect)', async () =>
+    {
+        const client = new EventClient({ logger : Logger.DummyLogger, context : { nix : 1 } });
+
+        client.contextify({ truth : 42 });
+
+        const routingKey = 'event-client.Test';
+        const input = { message: 'Simple_Test' };
+        const result =  { };
+
+        await client.init();
+
+        await client.subscribe(routingKey, async (payload, context, key) =>
+        {
+            delete context.timestamp;
+
+            result.payload = payload;
+            result.context = context;
+            result.key = key;
+        })
+
+        await sleep(500);
+
+        await configService.setProperty('mq/password', process.env.RABBITMQ_PASS);
+
+        await sleep(500);
+
+        await client.emit(routingKey, input);
+
+        await sleep(500);
+
+        assert.equal(await client.exchangeExists('event-client'), true);
+
+        assert.deepEqual(result.payload, input);
+        assert.deepEqual(result.context, { truth : 42, senderService : 'event-client' });
+        assert.equal(result.key, routingKey);
+
+        assert.equal(await client.unsubscribe(routingKey), true);
+
+        await client.dispose();
     });
 
     it('Simple test (2 clients)', async () =>
     {
-        const subscriberClient = new EventClient({ context : { nix : 1 } });
-        const publisherClient = new EventClient();
+        const subscriberClient = new EventClient({ logger : Logger.DummyLogger,  context : { nix : 1 } });
+        const publisherClient = new EventClient({ logger : Logger.DummyLogger });
 
         publisherClient.contextify({ truth : 42 });
 
@@ -111,13 +141,16 @@ describe('Main', () =>
         assert.equal(result.key, routingKey);
 
         assert.equal(await subscriberClient.unsubscribe(routingKey), true);
+
+        await subscriberClient.dispose();
+        await publisherClient.dispose();
     });
 
     it('Simple connection with ACK (1 clients)', async () =>
     {
         let iteration = 0;
 
-        const client = new EventClient();
+        const client = new EventClient({ logger : Logger.DummyLogger });
         const routingKey = 'event-client.ACK';
         const input = { message: 'Test-ACK-Value' };
 
@@ -144,14 +177,15 @@ describe('Main', () =>
         assert.equal(iteration, 3);
 
         await client.unsubscribe(routingKey);
+        await client.dispose();
     });
 
     it('Simple connection with ACK (2 clients)', async () =>
     {
         let iteration = 0;
 
-        const subscriberClient = new EventClient();
-        const publisherClient = new EventClient();
+        const subscriberClient = new EventClient({ logger : Logger.DummyLogger });
+        const publisherClient = new EventClient({ logger : Logger.DummyLogger });
         const routingKey = 'event-client.ACK';
         const input = { message: 'Test-ACK-Value' };
 
@@ -178,6 +212,9 @@ describe('Main', () =>
         assert.equal(iteration, 3);
 
         await subscriberClient.unsubscribe(routingKey);
+
+        await subscriberClient.dispose();
+        await publisherClient.dispose();
     });
 
     it('Multiple (different) instances', async () =>
@@ -186,9 +223,9 @@ describe('Main', () =>
 
         const routingKey = 'event-client.Instances';
         const input = { message: 'Test-ACK-Value' };
-        const publisherClient = new EventClient();
-        const subscriberClient1 = new EventClient({ consulOverride });
-        const subscriberClient2 = new EventClient();
+        const publisherClient = new EventClient({ logger : Logger.DummyLogger });
+        const subscriberClient1 = new EventClient({ logger : Logger.DummyLogger, consulOverride });
+        const subscriberClient2 = new EventClient({ logger : Logger.DummyLogger });
 
         const callback = (payload, context, key) =>
         {
@@ -217,11 +254,15 @@ describe('Main', () =>
             subscriberClient1.unsubscribe(routingKey),
             subscriberClient2.unsubscribe(routingKey)
         ]);
+
+        await publisherClient.dispose();
+        await subscriberClient1.dispose();
+        await subscriberClient2.dispose();
     });
 
     it('Pattern test (1 client)', async () =>
     {
-        const client = new EventClient();
+        const client = new EventClient({ logger : Logger.DummyLogger });
         const routingPattern = 'event-client.#';
         const routingKey = 'event-client.test';
 
@@ -245,12 +286,14 @@ describe('Main', () =>
 
         assert.equal(iterator, 1);
         assert.deepEqual(output, input);
+
+        await client.dispose();
     });
 
     it('Pattern test (2 clients)', async () =>
     {
-        const publisherClient = new EventClient({ new : 1 });
-        const subscriberClient = new EventClient({ new : 2 });
+        const publisherClient = new EventClient({ logger : Logger.DummyLogger, new : 1 });
+        const subscriberClient = new EventClient({ logger : Logger.DummyLogger, new : 2 });
         const routingPattern = 'event-client.#';
         const routingKey = 'event-client.test';
 
@@ -274,12 +317,15 @@ describe('Main', () =>
 
         assert.equal(iterator, 1);
         assert.deepEqual(output, input);
+
+        await publisherClient.dispose();
+        await subscriberClient.dispose();
     });
 
     it('Double subscription (2 clients)', async () =>
     {
-        const client1 = new EventClient();
-        const client2 = new EventClient();
+        const client1 = new EventClient({ logger : Logger.DummyLogger });
+        const client2 = new EventClient({ logger : Logger.DummyLogger });
 
         const routingKey = 'event-client.Test';
         const input = { message: 'Simple_Test' };
@@ -299,8 +345,8 @@ describe('Main', () =>
 
     it('Dispose test 1', async () =>
     {
-        const subscriberClient = new EventClient();
-        const publisherClient = new EventClient();
+        const subscriberClient = new EventClient({ logger : Logger.DummyLogger });
+        const publisherClient = new EventClient({ logger : Logger.DummyLogger });
         const routingKey = 'event-client.dispose';
         const input = { message : 'Gone!' };
 
@@ -314,12 +360,15 @@ describe('Main', () =>
         await publisherClient.disposePublisher();
         await subscriberClient.subscribe(routingKey, callback);
         await subscriberClient.dispose();
+
+        await publisherClient.dispose();
+        await subscriberClient.dispose();
     });
 
     it('Dispose test 2', async () =>
     {
-        const subscriberClient = new EventClient({ queueName : 'test' });
-        const publisherClient = new EventClient();
+        const subscriberClient = new EventClient({ logger : Logger.DummyLogger, queueName : 'test' });
+        const publisherClient = new EventClient({ logger : Logger.DummyLogger });
         const routingKey = 'event-client.dispose';
         const input = { message : 'Gone!' };
 
@@ -340,7 +389,7 @@ describe('Main', () =>
 
     it('Dispose test 3', async () =>
     {
-        const client = new EventClient({ queueName : 'test' });
+        const client = new EventClient({ logger : Logger.DummyLogger, queueName : 'test' });
         const routingKey = 'event-client.dispose';
         const input = { message : 'Gone!' };
 
@@ -361,7 +410,7 @@ describe('Main', () =>
 
     it('Error test 1', async () =>
     {
-        const client = new EventClient();
+        const client = new EventClient({ logger : Logger.DummyLogger });
 
         const routingKey = 'event-client.Test';
         const input = { message: 'Simple_Test' };
@@ -386,7 +435,7 @@ describe('Main', () =>
 
     it('Error test 2', async () =>
     {
-        const client = new EventClient({ parserContentType : 'fail' });
+        const client = new EventClient({ logger : Logger.DummyLogger, parserContentType : 'fail' });
 
         const routingKey = 'event-client.Test';
         const input = { message: 'Simple_Test' };
@@ -405,22 +454,27 @@ describe('Main', () =>
         await client.dispose();
     });
 
-    // it('Error test 3', async () =>
-    // {
-    //     const client = new EventClient({ parserContentType : 'fail' });
-    //
-    //     const routingKey = 'event-client.Test';
-    //     const input = { message: 'Simple_Test' };
-    //
-    //     await client.init();
-    //     await client.subscribe(routingKey, async (payload, context, key) => null);
-    //
-    //     await sleep(40000);
-    //
-    //     await client.emit(routingKey, input);
-    //
-    //     await sleep(500);
-    //
-    //     await client.dispose();
-    // });
+    it('Error test 3', async () =>
+    {
+        const client = new EventClient({ logger : Logger.DummyLogger, parserContentType : 'fail' });
+
+        const routingKey = 'event-client.Test';
+        const input = { message: 'Simple_Test' };
+
+        await client.init();
+        await client.subscribe(routingKey, async (payload, context, key) => null);
+
+        await sleep(1000);
+
+        await client.emit(routingKey, input);
+
+        await sleep(500);
+
+        await client.dispose();
+    });
+
+    after('Shutdown', async () =>
+    {
+        await configService.dispose();
+    });
 });

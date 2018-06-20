@@ -2,4 +2,7 @@ version: '2'
 services:
   main:
     volumes:
-        - .:/home/node/event-client
+        - ./coverage:/home/node/event-client/coverage
+        - ./lib:/home/node/event-client/lib
+        - ./test:/home/node/event-client/test
+        - ./wiki:/home/node/event-client/wiki
