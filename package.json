@@ -1,6 +1,6 @@
 {
   "name": "@opuscapita/event-client",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "description": "An event client to handle the event system in microservices architecture.",
   "main": "index.js",
   "repository": {
