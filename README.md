@@ -54,7 +54,18 @@ const EventClient = require('@opuscapita/event-client');
 
     await events.subscribe('my-service.my-channel');
     await events.emit('my-service.my-channel', 'Hello, world!');
-    const message = await events.getMessage('my-service.my-channel');
+
+    // With automatic acknowledgement.
+    let message = await events.getMessage('my-service.my-channel');
+
+    console.log(message);
+
+
+    await events.emit('my-service.my-channel', 'Hello, world!');
+
+    // With manual acknowledgement.
+    message = await events.getMessage('my-service.my-channel', false);
+    await events.ackMessage(message);
 
     console.log(message);
 
