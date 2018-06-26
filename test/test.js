@@ -481,22 +481,54 @@ describe('Main', () =>
         const input = { message: 'Hello, world!' };
 
         await client.init();
-
         await client.subscribe(routingKey);
 
-        await sleep(500);
+        {
+            await client.emit(routingKey, input);
 
-        await client.emit(routingKey, input);
+            await sleep(500);
 
-        await sleep(500);
+            const result = await client.getMessage(routingKey);
+            assert.equal(await client.getMessage(routingKey), false);
 
-        const result = await client.getMessage(routingKey);
+            delete result.context.timestamp;
 
-        delete result.context.timestamp;
+            assert.deepEqual(result.payload, input);
+            assert.deepEqual(result.context, { senderService : 'event-client' });
+            assert.equal(result.topic, routingKey);
+        }
 
-        assert.deepEqual(result.payload, input);
-        assert.deepEqual(result.context, { senderService : 'event-client' });
-        assert.equal(result.topic, routingKey);
+        {
+            await client.emit(routingKey, input);
+
+            await sleep(500);
+
+            let message = await client.getMessage(routingKey, false);
+            assert.equal(await client.getMessage(routingKey), false);
+
+            delete message.context.timestamp;
+
+            assert.deepEqual(message.payload, input);
+            assert.deepEqual(message.context, { senderService : 'event-client' });
+            assert.equal(message.topic, routingKey);
+
+            await client.nackMessage(message);
+
+
+
+            message = await client.getMessage(routingKey, false);
+            assert.equal(await client.getMessage(routingKey), false);
+
+            delete message.context.timestamp;
+
+            assert.deepEqual(message.payload, input);
+            assert.deepEqual(message.context, { senderService : 'event-client' });
+            assert.equal(message.topic, routingKey);
+
+            await client.ackMessage(message);
+
+            assert.equal(await client.getMessage(routingKey), false);
+        }
 
         assert.equal(await client.unsubscribe(routingKey), false);
 
