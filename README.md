@@ -11,24 +11,55 @@ To go with the minimum setup, you need to have access to a running **Consul serv
 
 > The basic implementation requirements define, that the format of an **event's name** has to be **serviceName.domainName.eventType.eventDetail** where **serviceName** defines the name of the **exchange** used. If the exchange does not exist, an error will be thrown by the *subscribe()* method. Therefor please **make sure**, the **exchange exists** by either creating it manually or bringing up the service that raises the event as the *emit()* method will create the exchange for the service it is called in.
 
+#### Common subscription
+
 If all this is set up, go to you code and add the following lines:
 
 ```JS
 const EventClient = require('@opuscapita/event-client');
 
-const events = new EventClient({ consul : { host : '{{your-consul-host}}' } });
+(async () =>
+{
+    const events = new EventClient({ consul : { host : '{{your-consul-host}}' } });
 
-// Subscribe to a channel by name.
-events.subscribe('my-service.my-channel', console.log).then(() => events.emit('my-service.my-channel', 'Hello, world!'));
-// - OR -
-// Subscribe to a channel by pattern.
-events.subscribe('my-service.my-channel.#', console.log).then(() => events.emit('my-service.my-channel.sub-channel', 'Hello, world!'));
+    // Subscribe to a channel by name.
+    await events.subscribe('my-service.my-channel', console.log);
+    await events.emit('my-service.my-channel', 'Hello, world!');
 
-// unsubscribe from a particular key
-events.unsubscribe('my-service.my-channel');
+    // - OR -
+    // Subscribe to a channel by pattern.
+    await events.subscribe('my-service.my-channel.#', console.log);
+    await events.emit('my-service.my-channel.sub-channel', 'Hello, world!');
 
-// unsubscribe from a pattern
-events.unsubscribe('my-service.my-channel.#');
+    // unsubscribe from a particular key
+    await events.unsubscribe('my-service.my-channel');
+
+    // unsubscribe from a pattern
+    await events.unsubscribe('my-service.my-channel.#');
+
+    await events.dispose();
+})();
+```
+
+#### Fetching single message
+
+EventClient is also capable of fetching single events (messages) from a queue. This is done by subscribing to a queue without a callback and then fetching messages manually one by one.
+
+```JS
+const EventClient = require('@opuscapita/event-client');
+
+(async () =>
+{
+    const events = new EventClient();
+
+    await events.subscribe('my-service.my-channel');
+    await events.emit('my-service.my-channel', 'Hello, world!');
+    const message = await events.getMessage('my-service.my-channel');
+
+    console.log(message);
+
+    await events.dispose();
+})();
 ```
 
 ### Default configuration

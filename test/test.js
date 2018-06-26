@@ -473,6 +473,36 @@ describe('Main', () =>
         await client.dispose();
     });
 
+    it('Testing getMessage', async () =>
+    {
+        const client = new EventClient({ logger : Logger.DummyLogger });
+
+        const routingKey = 'event-client.TestGetMessage';
+        const input = { message: 'Hello, world!' };
+
+        await client.init();
+
+        await client.subscribe(routingKey);
+
+        await sleep(500);
+
+        await client.emit(routingKey, input);
+
+        await sleep(500);
+
+        const result = await client.getMessage(routingKey);
+
+        delete result.context.timestamp;
+
+        assert.deepEqual(result.payload, input);
+        assert.deepEqual(result.context, { senderService : 'event-client' });
+        assert.equal(result.topic, routingKey);
+
+        assert.equal(await client.unsubscribe(routingKey), false);
+
+        await client.dispose();
+    });
+
     after('Shutdown', async () =>
     {
         await configService.dispose();
