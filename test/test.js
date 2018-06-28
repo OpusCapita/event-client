@@ -530,7 +530,7 @@ describe('Main', () =>
             assert.equal(await client.getMessage(routingKey), false);
         }
 
-        assert.equal(await client.unsubscribe(routingKey), false);
+        //assert.equal(await client.unsubscribe(routingKey), false);
 
         await client.dispose();
     });
