@@ -101,3 +101,10 @@ The default configuration object provides hints about what the module's standard
     }
 }
 ```
+
+### Testing
+
+local docker-compose comes with a two node rabbitmq cluster that can be used to 
+test cluster node failure conditions.
+To bring down a node curl it on port 6666 for rabbit1 and 6667 for rabbit2 which will take them down...
+
