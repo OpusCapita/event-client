@@ -25,7 +25,7 @@ describe('Main', () =>
 
     it('Simple test (1 client)', async () =>
     {
-        const client = new EventClient({ logger : Logger.DummyLogger, context : { nix : 1 } });
+        const client = new EventClient({ logger : new Logger(), context : { nix : 1 } });
 
         client.contextify({ truth : 42 });
 
@@ -44,7 +44,7 @@ describe('Main', () =>
             result.key = key;
         })
 
-        await sleep(500);
+        await sleep(45000);
 
         await client.emit(routingKey, input);
 
@@ -287,6 +287,8 @@ describe('Main', () =>
         assert.equal(iterator, 1);
         assert.deepEqual(output, input);
 
+        await sleep(1000);
+
         await client.dispose();
     });
 
@@ -318,6 +320,8 @@ describe('Main', () =>
         assert.equal(iterator, 1);
         assert.deepEqual(output, input);
 
+        await sleep(1000);
+
         await publisherClient.dispose();
         await subscriberClient.dispose();
     });
@@ -338,6 +342,8 @@ describe('Main', () =>
         await client2.subscribe(routingKey, async (payload, context, key) => null).catch(e => result = true);
 
         assert.equal(result, true);
+
+        await sleep(1000);
 
         client1.dispose();
         client2.dispose();
@@ -364,6 +370,7 @@ describe('Main', () =>
         await publisherClient.dispose();
         await subscriberClient.dispose();
     });
+
 
     it('Dispose test 2', async () =>
     {
@@ -530,7 +537,7 @@ describe('Main', () =>
             assert.equal(await client.getMessage(routingKey), false);
         }
 
-        //assert.equal(await client.unsubscribe(routingKey), false);
+        assert.equal(await client.unsubscribe(routingKey), null);
 
         await client.dispose();
     });
