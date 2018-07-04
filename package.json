@@ -11,9 +11,9 @@
     "start": "npm run test-result",
     "setup-consul": "curl -X PUT -d ${RABBITMQ_USER} http://consul:8500/v1/kv/event-client/mq/user ; curl -X PUT -d ${RABBITMQ_PASS} http://consul:8500/v1/kv/event-client/mq/password",
     "clean": "npx rimraf coverage/* .nyc_output",
-    "test": "npm run clean ; npm run setup-consul ; npx nyc mocha --timeout 50000 --recursive -R mocha-junit-reporter",
-    "test-raw": "npm run clean ; npm run setup-consul ; npx nyc mocha --timeout 50000 --recursive",
-    "test-coverage": "npm run clean ; npm run setup-consul ; npx nyc --reporter=lcov mocha --timeout 50000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
+    "test": "npm run clean ; npm run setup-consul ; npx nyc mocha --timeout 120000 --recursive -R mocha-junit-reporter",
+    "test-raw": "npm run clean ; npm run setup-consul ; npx nyc mocha --timeout 120000 --recursive",
+    "test-coverage": "npm run clean ; npm run setup-consul ; npx nyc --reporter=lcov mocha --timeout 120000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
     "upload-coverage": "cat ./coverage/lcov.info | npx coveralls",
     "api-doc": "npx jsdoc2md --files ./lib/* > wiki/Home.md",
     "doc": "npm run api-doc",
@@ -26,19 +26,19 @@
     "lib"
   ],
   "dependencies": {
-    "@opuscapita/config": "^3.0.9",
+    "@opuscapita/config": "^3.0.11",
     "amqplib": "^0.5.2",
     "bluebird": "^3.5.1",
     "bluebird-retry": "^0.11.0",
     "extend": "^3.0.1",
-    "ocbesbn-logger": "^1.0.5",
-    "superagent": "^3.8.3"
+    "ocbesbn-logger": "^1.0.5"
   },
   "devDependencies": {
     "coveralls": "^3.0.1",
     "jsdoc-to-markdown": "^4.0.1",
     "mocha": "^5.2.0",
     "mocha-junit-reporter": "^1.17.0",
-    "nyc": "^11.8.0"
+    "nyc": "^11.8.0",
+    "superagent": "^3.8.3"
   }
 }
