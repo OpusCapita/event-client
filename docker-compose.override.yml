@@ -3,6 +3,6 @@ services:
   main:
     volumes:
         - ./coverage:/home/node/event-client/coverage
-        - ./lib:/home/node/event-client/lib
+        - ./src:/home/node/event-client/src
         - ./test:/home/node/event-client/test
         - ./wiki:/home/node/event-client/wiki
