@@ -1,8 +1,14 @@
 version: '2'
 services:
   main:
+    command: 'npm run debug'
+    ports:
+        - 9228:9228
+    expose:
+        - 9228
     volumes:
         - ./coverage:/home/node/event-client/coverage
         - ./lib:/home/node/event-client/lib
         - ./test:/home/node/event-client/test
         - ./wiki:/home/node/event-client/wiki
+        - ./debug:/home/node/event-client/debug
