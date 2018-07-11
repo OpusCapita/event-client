@@ -36,7 +36,6 @@ describe('Main', () =>
         const result =  { };
 
         await client.init();
-console.log("<<< client init done");
 
         try {
             await client.subscribe(routingKey, async (payload, context, key) =>
@@ -53,6 +52,7 @@ console.log("<<< client init done");
         }
 
         await sleep(500);
+        //await sleep(500000);
 
         await client.emit(routingKey, input);
 
@@ -552,6 +552,7 @@ console.log("<<< client init done");
 */
     after('Shutdown', async () =>
     {
+        
         await configService.dispose();
     });
 });

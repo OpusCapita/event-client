@@ -1,7 +1,10 @@
 var singletonCore = null;
 
 const extend = require('extend');
+const util = require('util');
 const Logger = require('ocbesbn-logger').setDebugMode(true);
+const ChannelPool = require('./ChannelPool');
+
 /**
  * This is a thin wrapper around EventClientCore
  * that does carry contextual information
@@ -44,7 +47,7 @@ class EventClient
     subscribe(topic, callback = null, opts = { })
     {
         if(this.core.state != 3)
-            return Promise.reject("Core not initialized, current state " + this.core.state);
+            return Promise.reject("Can't subscribe " + topic + ": Core not initialized, current state " + this.core.state);
         if(this.consumers[topic]) {
             this.logger.warn('Trying to consume topic ' + topic + ' repeatedly');
             return Promise.reject('Trying to consume topic ' + topic + ' repeatedly');
@@ -56,6 +59,60 @@ class EventClient
         })
         .catch( (err) => {
             this.logger.error("Subscribe failed:", err);
+            return Promise.reject(err);
+        });
+    }
+    
+    /**
+     * Raises an event for a certain topic by passing a message and an optional context.
+     *
+     * The passed *topic* has to be a string and identify the raised event as exact as possible.
+     * The passed *message* can consis of all data types that can be serialized into a string.
+     * The optional *context* paraemter adds additional meta data to the event. It has to be an event
+     * and will extend a possibly existing global context defined by the config object passed
+     * to the constructor (see {@link EventClient.DefaultConfig}).
+     *
+     * @param {string} topic - Full name of a topic.
+     * @param {object} message - Payload to be sent to a receiver.
+     * @param {object} context - Optional context containing meta data for the receiver of an event.
+     * @param {EmitOpts} opts - Additional options to be set for emmiting an event.
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to null if the subscription succeeded. Otherwise the promise gets rejected with an error.
+     */
+    emit(topic, message, context = null, opts = { })
+    {
+        if(this.core.state != 3)
+            return Promise.reject("Can't publish event Core not initialized, current state " + this.core.state);
+
+          let localContext = {
+            senderService : this.serviceName,
+            timestamp : new Date().toString()
+        };
+
+        localContext = extend(true, { }, this.config.context, context, localContext);
+        const messageId = `${this.serviceName}.${crypto.randomBytes(16).toString('hex')}`;
+        let payload = this.config.serializer(message);
+        
+        const options = {
+            ...opts,
+            persistent : true,
+            contentType : this.config.serializerContentType,
+            contentEncoding : 'utf-8',
+            timestamp : Math.floor(Date.now() / 1000),
+            correlationId : context && context.correlationId,
+            appId : this.serviceName,
+            messageId : messageId,
+            headers : localContext
+        };
+
+        const logger = this.logger.clone();
+
+        logger.contextify(extend(true, { }, localContext, options));
+        logger.info(`Emitting event "${topic}"`);
+        
+        return this.core.emit(topic, payload, context, opts)
+        .catch( (err) => {
+            let eventRep = {options: options, payload: payload};
+            this.logger.error("Publish failed with error " + err + " on topic " + topic + ", options " + JSON.stringify(options) + ", payload = ", eventRep);
             return Promise.reject(err);
         });
     }
@@ -119,18 +176,24 @@ class EventClientCore
         this.config = config;
         this.serviceName = configService.serviceName;
         this.exchangeName = this.config.exchangeName || this.serviceName;
+        this.channelPool = new ChannelPool(this.config, this);
 //        this.queueName = this.config.queueName;
         this.connectionState = 1; 
-console.log("EventClientCore.this: ", this);
+// console.log("EventClientCore.this: ", this);
         return this.initConfigService()
         .then( () => {
             this.logger.info("initialized config service");
             return this.connect();     
         })
+        .then( (amqpConnection) => {
+            this.logger.info("initialized connection: ", this.amqpConnection);
+            this.logger.info("connection state: ", this.connectionState);
+            return this.channelPool.init();
+        })
         .then( () => {
-            this.logger.info("initialized connection");
-     
-            return this.registerExchange();
+            this.logger.info("initialized channel pool");
+            
+            return this.registerExchange(); // happening on channel 1
         })
         .then( () => {
             this.logger.info("registered exchange " + this.exchangeName);
@@ -140,11 +203,117 @@ console.log("EventClientCore.this: ", this);
         .catch( (err) => {
             this.logger.error("Error initializing EventClientCore: ", err);
             this.state = 1;
+            throw new Error(err);
         })
     }
 
-    async openChannel() {
-//        this.amqpConnection.
+    /**
+     * Raises an event for a certain topic by passing a message and an optional context.
+     *
+     * The passed *topic* has to be a string and identify the raised event as exact as possible.
+     * The passed *message* can consis of all data types that can be serialized into a string.
+     * The optional *context* paraemter adds additional meta data to the event. It has to be an event
+     * and will extend a possibly existing global context defined by the config object passed
+     * to the constructor (see {@link EventClient.DefaultConfig}).
+     *
+     * @param {string} topic - Full name of a topic.
+     * @param {object} payload - String (already serialized)
+     * @param {object} context - Optional context containing meta data for the receiver of an event.
+     * @param {EmitOpts} opts - Additional options to be set for emmiting an event.
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to null if the subscription succeeded. Otherwise the promise gets rejected with an error.
+     */
+    async emit(topic, payload, context = null, opts = { })
+    {
+        if(this.connectionState != 4){
+            this.logger.error("Trying to emit on unconnected core, connectionState = " + this.connectionState);
+            throw new Error("Trying to emit on unconnected core, connectionState = " + this.connectionState);
+        }
+
+
+        const exchangeName = this.exchangeName;
+        
+        let channel = null;
+        try {
+            channel = await this.channelPool.leaseChannel("publish");
+        }
+        catch(e) {
+            this.logger.error("Error leasing channel to publish event: ", e);
+            throw e; // maybe handle this transparently ?
+        }
+        
+        try {
+            await this.publish(channel, exchangeName, topic, logger, payload, options);
+        }
+        catch(e) {
+            this.logger.error("Error publishing message on channel " + channel.channelNo + ": ", e);
+            throw e; // maybe handle this transparently ?
+        }
+        return null;
+    }
+    
+    /**
+     * Channel needs to be a channel descriptor
+     */
+    async publish(channel, exchangeName, logger, payload, options) {
+
+        return new Promise((resolve, reject) => {
+            this.logger.info("publishing event on channel " + channel.channelNo + ", using headers ", options);
+            try {
+                /**
+                this.amqpConnection.once('' + channel.channelNo + ':basic.consume-ok', (channelNo, method, data)  =>
+                    {
+                        channel.state = ChannelPool.CS_CONSUMING;
+                        
+                        this.logger.info("handshake for consuming queue " + queueName + " via channel " + channel.channelNo + " received, consumer tag: ", data);
+                        
+                        channel.consumerTag = data['consumer-tag'];
+                        
+                        this.amqpConnection.on(''+channel.channelNo+':basic.deliver', (channelNo, method, message) =>
+                            {
+                                console.log("message received on channel " + channel.channelNo + ", queue " + queueName + ": ", message);
+                                callback(message);
+                            }
+                        );
+                        resolve(channel);
+                    }
+                );*/
+                this.amqpConnection.basic.publish(channel.channelNo, exchangeName, topic, false, false, (err) =>
+                    {
+                        if(err) {
+                            this.logger.error("Error publishing event on channel " + channel.channelNo + ": ", err);
+                            channel.state = ChannelPool.CS_ERROR;
+                            reject(err);
+                        }
+                        else {
+                            this.logger.info("Publish for channel " + channel.channelNo + " sent, sending content...");
+                            
+                            // only resolve once we got the handshake
+                            channel.state = ChannelPool.CS_CONTENT;
+                            
+                            this.amqpConnection.content(channel.channelNo, 'basic', options, payload, (contentError) => 
+                                {
+                                    if(contentError){
+                                        this.logger.error("error sending content on channel " + channel.channelNo + " for messageId " + options.messageId + ": ", contentError);
+                                        channel.state = ChannelPool.CS_ERROR;
+                                        reject(contentError);
+                                    }
+                                    else {
+                                        this.logger.info("sent content");
+                                        channel.state = ChannelPool.CS_OPEN;
+                                        resolve();
+                                    }
+                                }
+                            );
+                        }
+                    }
+                );
+            }
+            catch(e) {
+                this.logger.error("Error binding queue " + queueName, e);
+                channel.state = ChannelPool.CS_ERROR;
+                reject(e);
+            }
+        });
     }
 
     async subscribe(topic, callback, opts) {
@@ -152,77 +321,175 @@ console.log("EventClientCore.this: ", this);
             this.logger.error("Trying to register consumer on unconnected core, connectionState = " + this.connectionState);
             throw new Error("Trying to register consumer on unconnected core, connectionState = " + this.connectionState);
         }
-        this.logger.info("Declaring queue " + this.queueName(topic) + "...");
+        
+        
+        this.logger.info("Getting channel for new subscriber on queue " + this.queueName(topic) + "...");
+        let channel = null;
         try {
-            await this.declareQueue(topic);
+            channel = await this.channelPool.leaseChannel("consumer");
+        }
+        catch(e) {
+            this.logger.error("Error leasing channel to consume queue: ", e);
+            throw e; // maybe handle this transparently ?
+        }
+        this.logger.info("Declaring queue " + this.queueName(topic) + " on channel " + channel.channelNo);
+        try {
+            await this.declareQueue(channel.channelNo, topic);
         }
         catch( e ) {
             this.logger.error("Error declaring queue for topic " + topic, e);
             throw e;
         }
         try {
-            await this.bindQueue(topic);
+            let exchange = topic.substring(0, topic.indexOf('.'));
+            await this.bindQueue(channel.channelNo, exchange, topic);
         }
         catch( e ) {
             this.logger.error("Error binding queue for topic " + topic, e);
             throw e;
         }
-
+        let consumerChannel = null;
+        try {
+            consumerChannel = await this.consumeQueue(channel, this.queueName(topic));
+        }
+        catch( e ) {
+            this.logger.error("Error consuming queue for topic " + topic, e);
+            throw e;
+        }
+        return consumerChannel;
     }
 
-    async bindQueue(topic) {
+    /**
+     * Channel needs to be a channel descriptor
+     */
+    async consumeQueue(channel, queueName, callback) {
+
         return new Promise((resolve, reject) => {
-            let queueName = this.queueName(topic);
-            let exchangeName = topic.substring(0, topic.indexOf(queueSeparator));
-            let routingKey = topic.substring(topic.indexOf(queueSeparator)+1, topic.length);
-            this.logger.info("binding queue with name " + queueName + " to exchange " + exchangeName + " using routing key " + routingKey);
+            this.logger.info("consuming queue with name " + queueName);
             try {
-            this.amqpConnection.queue.bind(1, queueName, exchangeName, routingKey,                                          false, {}, (error) =>
-            {
-                if(error)
-                {
-                    this.logger.error("Binding of queue " + queueName + " failed: ", error);
-                    reject(error);
-                }
-                else {
-                    this.logger.info("queue " + queueName + " bound.");
-                    resolve();
-                }
-            }
-            );
+                // channel#, queueName, consumerTag, no-local, no-ack, exclusive, no-wait, args
+                this.amqpConnection.once('' + channel.channelNo + ':basic.consume-ok', (channelNo, method, data)  =>
+                    {
+                        channel.state = ChannelPool.CS_CONSUMING;
+                        
+                        this.logger.info("handshake for consuming queue " + queueName + " via channel " + channel.channelNo + " received, consumer tag: ", data);
+                        
+                        channel.consumerTag = data['consumer-tag'];
+                        
+                        this.amqpConnection.on(''+channel.channelNo+':basic.deliver', (channelNo, method, message) =>
+                            {
+                                console.log("message received on channel " + channel.channelNo + ", queue " + queueName + ": ", message);
+                                callback(message);
+                            }
+                        );
+                        resolve(channel);
+                    }
+                );
+                this.amqpConnection.basic.consume(channel.channelNo, queueName, null, false, false, false, false, {}, (err) =>
+                    {
+                        if(err) {
+                            this.logger.error("Error consuming channel " + channel.channelNo + ": ", err);
+                            channel.state = ChannelPool.CS_ERROR;
+                            reject(err);
+                        }
+                        else {
+                            this.logger.info("Consume for channel " + channel.channelNo + " sent, waiting for handshake...");
+                            
+                            // only resolve once we got the handshake
+                            channel.state = ChannelPool.CS_AWAITING_REPLY;
+                        }
+                    }
+                );
             }
             catch(e) {
                 this.logger.error("Error binding queue " + queueName, e);
+                channel.state = ChannelPool.CS_ERROR;
                 reject(e);
             }
         });
     }
 
-    async declareQueue(topic) {
+    /**
+     * Queues always belong to the service running event-client, but they can be bound to other services' exchanges
+     */
+    async bindQueue(channelNo, exchangeName, topic) {
+        let channel = this.channelPool.channels[channelNo-1];
+        return new Promise((resolve, reject) => {
+            let queueName = this.queueName(topic);
+            let routingKey = topic;
+            this.logger.info("channel = " + channelNo + ", topic = " + topic + ", queueSeparator = " + queueSeparator + ", binding queue with name " + queueName + " to exchange " + exchangeName + " using routing key " + routingKey);
+            try {
+                this.amqpConnection.once(''+channelNo+':queue.bind-ok', (channelNum, method, data) =>
+                    {
+                        this.logger.info("bind of queue " + queueName + " requested on channel " + channelNo + " confirmed by server on channel " + channelNum);
+                        channel.state = ChannelPool.CS_OPEN;
+                        resolve(data);
+                    }
+                );
+                this.amqpConnection.queue.bind(channelNo, queueName, exchangeName, routingKey, false, {}, (error) =>
+                    {
+                        if(error)
+                        {
+                            this.logger.error("Binding of queue " + queueName + " failed: ", error);
+                            channel.state = ChannelPool.CS_ERROR;
+                            reject(error);
+                        }
+                        else {
+                            this.logger.info("queue " + queueName + " bound.");
+                            channel.state = ChannelPool.CS_AWAITING_REPLY;
+                            resolve();
+                        }
+                    }
+                );
+            }
+            catch(e) {
+                this.logger.error("Error binding queue " + queueName, e);
+                channel.state = ChannelPool.CS_ERROR;
+                reject(e);
+            }
+        });
+    }
+
+    async declareQueue(channelNo, topic) {
          
+        let channel = this.channelPool.channels[channelNo-1];
+        
         // channel#, queueName, passive, durable, exclusive, auto-delete, no-wait, args
         // note that args can be used to control mirroring, as per https://www.rabbitmq.com/ha.html
         // we would need to pass ha-mode: exactly and ha-params; count=1
         return new Promise((resolve, reject) => {
-            this.logger.info("declaring queue with name " + this.queueName(topic));
+            this.logger.info("declaring queue with name " + this.queueName(topic) + " on channel " + channelNo);
             try {
-            this.amqpConnection.queue.declare(1, this.queueName(topic), false, true, false, 
-                                          false, false,{'ha-mode': {type:'Short string', data:'exactly'}, 'ha-params': {type:'Short string', data:'2'}}, (error) => 
-            {
-                if(error)
-                {
-                    this.logger.error("Declaration of queue " + this.queueName(topic) + " failed: ", error);
-                    reject(error);
-                }
-                else {
-                    this.logger.info("queue " + this.queueName(topic) + " declared.");
-                    resolve();
-                }
-            }
-            );
+                //{'ha-mode': {type:'Short string', data:'exactly'}, 'ha-params': {type:'Short string', data:'2'}}
+                
+                this.amqpConnection.once(''+channelNo+':queue.declare-ok', (channelNum, method, data) =>
+                    {
+                        this.logger.info("declare of queue " + this.queueName(topic) + " requested on channel " + channelNo + " confirmed by server on channel " + channelNum);
+                        channel.state = ChannelPool.CS_OPEN;
+                        resolve(data);
+                    }
+                );
+
+                this.amqpConnection.queue.declare(channelNo, this.queueName(topic), false, true, false, 
+                                              false, false,{}, (error) => 
+                    {
+                        if(error)
+                        {
+                            this.logger.error("Declaration of queue " + this.queueName(topic) + " failed: ", error);
+                            channel.state = ChannelPool.CS_ERROR;
+                            reject(error);
+                        }
+                        else {
+                            this.logger.info("queue " + this.queueName(topic) + " declared.");
+                            channel.state = ChannelPool.CS_OPEN;
+                            resolve();
+                        }
+                    }
+                );
             }
             catch(e) {
                 this.logger.error("Error declaring queue " + this.queueName(topic), e);
+                channel.state = ChannelPool.CS_ERROR;
                 reject(e);
             }
         });
@@ -233,15 +500,38 @@ console.log("EventClientCore.this: ", this);
     }
 
     async registerExchange() {
+        let channelNo = 1;
+        let channel = this.channelPool.channels[channelNo-1];
+        
         return new Promise((resolve, reject) => {
-            this.amqpConnection.exchange.declare(1, this.exchangeName, 'topic', false, true,
-            false, false, false, {}, (err) => {
-                if(err) {
-                    this.logger.error(err);
-                    reject("Failed declaring exchange " + this.exchangeName + ": " + error);
-                }
-                else resolve();
-            });
+            try {
+                this.amqpConnection.once(''+channelNo+':exchange.declare-ok', (channelNum, method, data) => 
+                    {
+                        this.logger.info("declare of exchange " + this.exchangeName + " requested on channel " + channelNo + " confirmed by server on channel " + channelNum);
+                        channel.state = ChannelPool.CS_OPEN;
+                        resolve(data);
+                    }
+                );
+                
+                this.amqpConnection.exchange.declare(channelNo, this.exchangeName, 'topic', false, true,
+                    false, false, false, {}, (err) => 
+                    {
+                        if(err) {
+                            this.logger.error(err);
+                            channel.state = ChannelPool.CS_ERROR;
+                            reject("Failed declaring exchange " + this.exchangeName + ": " + error);
+                        }
+                        else {
+                            this.logger.info("requested exchange declare on " + channelNo + ", waiting on handshake...");
+                            channel.state = ChannelPool.CS_AWAITING_REPLY;
+                        }
+                    }
+                );
+            }
+            catch( e ) {
+                channel.state = ChannelPool.CS_ERROR;
+                throw e;
+            }
         });
     }
 
@@ -258,47 +548,33 @@ console.log("EventClientCore.this: ", this);
 
     async amqpConnectionErrorHandler(error) 
     {
-        console.log("this3: ", this);
-	logger.error("Error on amqp connection: ", error);
-	this.connectionState = 1;
-	this.logger.info("Resetting amqp connection");
-	await new Promise( (resolve,reject) => {
-	this.amqpConnection.closeAMQPCommunication( (err) =>
-	    {
-	        if(err) {
-		    this.logger.error("Error closing amqp comms: ", err);
-		    this.destroySocket();
-		    this.connectionState = 1;
-		    reject(err);
-		}
-		else {
-		    this.logger.error("Closed amqp comms, destroying socket");
-		    this.destroySocket();
-		    this.connectionState = 1;
-		    resolve();
-		}
-            });
-	});
+        //console.log("this3: ", this);
+        this.logger.error("Error on amqp connection: ", error);
+        if(1 == 2) 
+        {
+          this.connectionState = 1;
+          this.logger.info("Resetting amqp connection");
+          await new Promise( (resolve,reject) => {
+              this.amqpConnection.closeAMQPCommunication( function(err)
+              {
+                if(err) {
+                  this.logger.error("Error closing amqp comms: ", err);
+                  this.destroySocket();
+                  this.connectionState = 1;
+                  reject(err);
+                }
+                else {
+                  this.logger.error("Closed amqp comms, destroying socket");
+                  this.destroySocket();
+                  this.connectionState = 1;
+                  resolve();
+                }
+              });
+          });
+        }
+        console.log("amqpConnectionErrorHandler done");
     }
     
-    handleBramqpInit(initError, handle)
-    {
-        console.log("this2: ", this);
-        if (initError) {
-            this.logger.error("Could not initialize bramqp: ", initError);
-            reject(initError);
-        }
-        else {
-            this.logger.info("adding connection error handler");
-            let logger = this.logger;
-            handle.on('error', this.amqpConnectionErrorHandler.bind(this));
-            handle.on('channel.close', function(channel, method, data) {
-	        this.logger.error('channel ' + channel + ' closed by server');
-            });
-            resolve(handle);
-        }
-    }
-
     async connect()
     {
         if(this.connectionState > 1)
@@ -318,11 +594,33 @@ console.log("EventClientCore.this: ", this);
             port: connectionConfig.port,
             host: connectionConfig.host
         });
+        this.socket.on('error', (err) => {
+            console.error("Socket error handler: ", err);
+        });
         
         await new Promise((resolve, reject) => {
-            console.log("this: ", this);
+            let handleBramqpInit = function(initError, handle)
+            {
+                //console.log("this2: ", this);
+                if (initError) {
+                    this.logger.error("Could not initialize bramqp: ", initError);
+                    reject(initError);
+                }
+                else {
+                    this.logger.info("adding connection error handler");
+                    let logger = this.logger;
+                    handle.on('error', this.amqpConnectionErrorHandler.bind(this));
+                    handle.on('channel.close', (channel, method, data) => 
+                        {
+                            this.logger.error('channel ' + channel + ' closed by server');
+                        }
+                    );
+                    resolve(handle);
+                }
+            }
+            //console.log("this: ", this);
             bramqp.initialize(this.socket, 'rabbitmq/full/amqp0-9-1.stripped.extended', 
-            this.handleBramqpInit.bind(this))
+            handleBramqpInit.bind(this))
         })
         .then( (amqpConnection) => {
             this.amqpConnection = amqpConnection;
@@ -354,8 +652,26 @@ console.log("EventClientCore.this: ", this);
             this.destroySocket();
             this.connectionState = 1;
         });
+        if(this.amqpConnection && this.connectionState == 4) {
+            this.logger.info("connect() successful");
+            return this.amqpConnection;
+        }
+        this.logger.error("connect() returns null");
+        return null;
     }
 
+    /**
+     * Returns bramqp handle if available
+     */
+    getAmqpConnection() {
+        if(this.connectionState == 4)
+            return this.amqpConnection;
+        else {
+            this.logger.error("can't return amqpConnection, as it's currently in state " + this.connectionState + ", connection: ", this.amqpConnection);
+            return null;
+        }
+    }
+    
     async getAmqpConnectionDetails() {
         const isConsulOverride = this.config.consulOverride && this.config.consulOverride.host && true;
 
@@ -374,7 +690,7 @@ console.log("EventClientCore.this: ", this);
         else
         {
             const config = this.config.consul;
-            this.logger.info("reading config from consul..., this=", this);
+            this.logger.info("reading config from consul..."); //, this=", this);
             const { host, port } = await configService.getEndPoint(config.mqServiceName);
             this.logger.info("host: " + host + ", port: " + port);
             const [ username, password ] = await configService.get([ config.mqUserKey, config.mqPasswordKey ]);
