@@ -11,4 +11,4 @@ services:
         - ./lib:/home/node/event-client/lib
         - ./test:/home/node/event-client/test
         - ./wiki:/home/node/event-client/wiki
-        - ./debug:/home/node/event-client/debug
+        - ./local:/home/node/event-client/local
