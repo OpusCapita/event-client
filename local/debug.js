@@ -54,14 +54,12 @@ async function main() {
 
         let result = await client.emit(routingKey1, {message: new Date()});
         // TODO result should be false or throw if connection is blocked
-        //
-        //
         rxTx.push(result);
 
         console.log(`Emit result is: ${result}`);
         console.log(`RxTx size = ${rxTx.length}`);
-    }, 5000);
-    
+    }, 10000);
+
     return true;
 }
 
