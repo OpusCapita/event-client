@@ -1,14 +1,17 @@
+/* global after:true, before:true describe:true, it:true */
+/* eslint object-curly-spacing: 0 */
+/* eslint key-spacing: 0 */
+
 const assert = require('assert');
 const configService = require('@opuscapita/config');
 const Logger = require('ocbesbn-logger');
-const { EventClient } = require('../lib');
+const {EventClient} = require('../lib');
 
 const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
 
-describe('Main', () =>
+describe('EventClient', () =>
 {
     const consulOverride = { };
-    let allMqNodes;
 
     before('Init', async () =>
     {
@@ -25,7 +28,7 @@ describe('Main', () =>
 
     });
 
-    it('Simple test (1 client)', async () =>
+    it('Should subscribe, emit, receive, unsubscribe and dispose with a single instance (1 client)', async () =>
     {
         const client = new EventClient({ logger : new Logger(), context : { nix : 1 } });
 
@@ -44,7 +47,7 @@ describe('Main', () =>
             result.payload = payload;
             result.context = context;
             result.key = key;
-        })
+        });
 
         await sleep(500);
 
@@ -63,7 +66,7 @@ describe('Main', () =>
         await client.dispose();
     });
 
-    it('Simple test (reconnect)', async () =>
+    it('Should reconnect on config change.', async () =>
     {
         const client = new EventClient({ logger : Logger.DummyLogger, context : { nix : 1 } });
 
@@ -82,7 +85,7 @@ describe('Main', () =>
             result.payload = payload;
             result.context = context;
             result.key = key;
-        })
+        });
 
         await sleep(500);
 
@@ -125,7 +128,7 @@ describe('Main', () =>
             result.payload = payload;
             result.context = context;
             result.key = key;
-        })
+        });
 
         await sleep(500);
 
@@ -135,7 +138,7 @@ describe('Main', () =>
 
         await sleep(500);
 
-        assert(await subscriberClient.exchangeExists('event-client'), true);
+        assert.equal(await subscriberClient.exchangeExists('event-client'), true);
         assert.equal(await subscriberClient.hasSubscription('invalid'), false);
 
         assert.deepEqual(result.payload, input);
@@ -148,7 +151,7 @@ describe('Main', () =>
         await publisherClient.dispose();
     });
 
-    it('Simple connection with ACK (1 clients)', async () =>
+    it('Should reenqueue messages that are rejected by the callback function. (1 client)', async () =>
     {
         let iteration = 0;
 
@@ -156,15 +159,15 @@ describe('Main', () =>
         const routingKey = 'event-client.ACK';
         const input = { message: 'Test-ACK-Value' };
 
-        await client.subscribe(routingKey, async (payload, context, key) =>
+        await client.subscribe(routingKey, async (payload) =>
         {
             iteration++;
 
             assert.deepEqual(payload, input);
 
-            if(iteration == 1)
+            if (iteration === 1)
                 return false;
-            else if(iteration == 2)
+            else if (iteration === 2)
                 throw new Error();
 
             return true;
@@ -182,7 +185,7 @@ describe('Main', () =>
         await client.dispose();
     });
 
-    it('Simple connection with ACK (2 clients)', async () =>
+    it('Should reenqueue messages that are rejected by the callback function. (2 client)', async () =>
     {
         let iteration = 0;
 
@@ -191,15 +194,15 @@ describe('Main', () =>
         const routingKey = 'event-client.ACK';
         const input = { message: 'Test-ACK-Value' };
 
-        await subscriberClient.subscribe(routingKey, async (payload, context, key) =>
+        await subscriberClient.subscribe(routingKey, async (payload) =>
         {
             iteration++;
 
             assert.deepEqual(payload, input);
 
-            if(iteration == 1)
+            if (iteration === 1)
                 return false;
-            else if(iteration == 2)
+            else if (iteration === 2)
                 throw new Error();
 
             return true;
@@ -219,7 +222,7 @@ describe('Main', () =>
         await publisherClient.dispose();
     });
 
-    it('Multiple (different) instances', async () =>
+    it('Should reenqueue messages that are rejected by the callback function. (1 publisher, 2 subscribers)', async () =>
     {
         let iteration = 0;
 
@@ -229,15 +232,15 @@ describe('Main', () =>
         const subscriberClient1 = new EventClient({ logger : Logger.DummyLogger, consulOverride });
         const subscriberClient2 = new EventClient({ logger : Logger.DummyLogger });
 
-        const callback = (payload, context, key) =>
+        const callback = (payload) =>
         {
             iteration++;
 
             assert.deepEqual(payload, input);
 
-            if(iteration === 1)
+            if (iteration === 1)
                 return false;
-            if(iteration === 2)
+            if (iteration === 2)
                 throw new Error();
         };
 
@@ -262,7 +265,7 @@ describe('Main', () =>
         await subscriberClient2.dispose();
     });
 
-    it('Pattern test (1 client)', async () =>
+    it('It should receive messages based on a pattern (1 client)', async () =>
     {
         const client = new EventClient({ logger : Logger.DummyLogger });
         const routingPattern = 'event-client.#';
@@ -270,13 +273,13 @@ describe('Main', () =>
 
         let iterator = 0;
         let output;
-        const input = { message: 'Test-pattern' }
+        const input = { message: 'Test-pattern' };
 
-        await client.subscribe(routingPattern, (payload, context, key) =>
+        await client.subscribe(routingPattern, (payload) =>
         {
             iterator++;
             output = payload;
-        })
+        });
 
         await client.emit(routingKey, input);
         await sleep(2000);
@@ -294,7 +297,7 @@ describe('Main', () =>
         await client.dispose();
     });
 
-    it('Pattern test (2 clients)', async () =>
+    it('It should receive messages based on a pattern (1 publisher, 1 subscriber)', async () =>
     {
         const publisherClient = new EventClient({ logger : Logger.DummyLogger, new : 1 });
         const subscriberClient = new EventClient({ logger : Logger.DummyLogger, new : 2 });
@@ -303,13 +306,13 @@ describe('Main', () =>
 
         let iterator = 0;
         let output;
-        const input = { message: 'Test-pattern' }
+        const input = { message: 'Test-pattern' };
 
-        await subscriberClient.subscribe(routingPattern, (payload, context, key) =>
+        await subscriberClient.subscribe(routingPattern, (payload) =>
         {
             iterator++;
             output = payload;
-        })
+        });
 
         await publisherClient.emit(routingKey, input);
         await sleep(2000);
@@ -328,20 +331,19 @@ describe('Main', () =>
         await subscriberClient.dispose();
     });
 
-    it('Double subscription (2 clients)', async () =>
+    it('It should fail on double subscriptions (2 client instances)', async () =>
     {
         const client1 = new EventClient({ logger : Logger.DummyLogger });
         const client2 = new EventClient({ logger : Logger.DummyLogger });
 
         const routingKey = 'event-client.Test';
-        const input = { message: 'Simple_Test' };
         let result = false;
 
         await client1.init();
         await client2.init();
 
-        await client1.subscribe(routingKey, async (payload, context, key) => null);
-        await client2.subscribe(routingKey, async (payload, context, key) => null).catch(e => result = true);
+        await client1.subscribe(routingKey, async () => null);
+        await client2.subscribe(routingKey, async () => null).catch(() => result = true);
 
         assert.equal(result, true);
 
@@ -361,7 +363,7 @@ describe('Main', () =>
         const callback = (payload) => assert.deepEqual(payload, input);
 
         await subscriberClient.subscribe(routingKey, callback);
-        assert.equal(42, await subscriberClient.subscribe(routingKey, callback).catch(e => 42));
+        assert.equal(42, await subscriberClient.subscribe(routingKey, callback).catch(() => 42)); // FIXME why?
         await subscriberClient.disposeSubscriber();
         await publisherClient.emit(routingKey, input);
         await publisherClient.disposePublisher();
@@ -403,7 +405,7 @@ describe('Main', () =>
         const input = { message : 'Gone!' };
 
         let emitCount = 0;
-        const callback = (payload) => { assert.deepEqual(payload, input); emitCount++ }
+        const callback = (payload) => { assert.deepEqual(payload, input); emitCount++; };
 
         await client.subscribe(routingKey, callback);
         await client.emit(routingKey, input);
@@ -426,7 +428,7 @@ describe('Main', () =>
 
         await client.init();
 
-        await client.subscribe(routingKey, async (payload, context, key) =>
+        await client.subscribe(routingKey, async () =>
         {
             throw new Error();
         });
@@ -442,7 +444,7 @@ describe('Main', () =>
         await client.dispose();
     });
 
-    it('Error test 2', async () =>
+    it('Should successfully unsubscribe from a topic.', async () =>
     {
         const client = new EventClient({ logger : Logger.DummyLogger, parserContentType : 'fail' });
 
@@ -450,7 +452,7 @@ describe('Main', () =>
         const input = { message: 'Simple_Test' };
 
         await client.init();
-        await client.subscribe(routingKey, async (payload, context, key) => null);
+        await client.subscribe(routingKey, async () => null);
 
         await sleep(500);
 
@@ -471,7 +473,7 @@ describe('Main', () =>
         const input = { message: 'Simple_Test' };
 
         await client.init();
-        await client.subscribe(routingKey, async (payload, context, key) => null);
+        await client.subscribe(routingKey, async () => null);
 
         await sleep(1000);
 
@@ -522,8 +524,6 @@ describe('Main', () =>
             assert.equal(message.topic, routingKey);
 
             await client.nackMessage(message);
-
-
 
             message = await client.getMessage(routingKey, false);
             assert.equal(await client.getMessage(routingKey), false);
