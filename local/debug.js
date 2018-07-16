@@ -52,7 +52,7 @@ async function main() {
     setInterval(async () => {
         console.log('Emitting event ...');
 
-        let result = await client.emit(routingKey1, {message: new Date()});
+        let result = client.emit(routingKey1, {message: new Date()});
         // TODO result should be false or throw if connection is blocked
         rxTx.push(result);
 
