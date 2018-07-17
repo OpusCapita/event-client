@@ -49,15 +49,20 @@ async function main() {
         return true;
     });
 
-    setInterval(async () => {
-        console.log('Emitting event ...');
-
-        let result = client.emit(routingKey1, {message: new Date()});
-        // TODO result should be false or throw if connection is blocked
+    let cnt = 0;
+    let interval = setInterval(async () => {
+        let result = await client.emit(routingKey1, {message: new Date()}, null, {ttl: 10000});
         rxTx.push(result);
-
+        cnt++;
         console.log(`Emit result is: ${result}`);
         console.log(`RxTx size = ${rxTx.length}`);
+
+        // if (cnt >= 1) {
+        //     console.log('Shutting down');
+        //     clearInterval(interval);
+
+        //     await client.dispose();
+        // }
     }, 10000);
 
     return true;
