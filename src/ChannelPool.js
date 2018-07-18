@@ -3,7 +3,7 @@ const extend = require('extend');
 class ChannelPool
 {
     constructor(config, ecc) {
-        this.config = extend(true, { }, ChannelPool.DefaultConfig, config);
+        this.config = extend(true, { }, {pool:ChannelPool.DefaultConfig}, config);
         this.logger = this.config.logger;
         this.size = 0;
         this.channels = [] // channel number is one-based, so channels[0] is channel#1 etc. 
@@ -64,11 +64,15 @@ class ChannelPool
           }
       }
       let channelsToOpen = this.config.pool.minIdle - idleCount;
+      if(!leasedChannel) channelsToOpen++;
       if(channelNo == -1) channelsToOpen++;
       
       
       let channel = null;
-      this.logger.info("going to open " + channelsToOpen + " new channels...");
+      if(leasedChannel) {
+          this.logger.info("leasing channel " + leasedChannel.channelNo + ", idleCount now " + idleCount + ", minIdle = " + this.config.pool.minIdle);
+      }
+      this.logger.info("found " + openableChannels.length + " channels that can be reopened, going to open " + channelsToOpen + " new channels...");
       let i = 0;
       while(channelsToOpen > 0) {
       //for(let i = this.channels.lenght; i < this.channels.length + channelsToOpen; i++) {
@@ -100,16 +104,19 @@ class ChannelPool
      * Will set the returned channel to idle so it can be leased again.
      */
     async returnChannel(channelNo) {
+        this.logger.info("returning channel " + channelNo);
         let channel = this.channels[channelNo-1];
-        if(!channel)
-            throw new Error("Can't return channel that doesn't exist.");
-        if(channel.state == CS_AWAITING_REPLY) { 
+        if(!channel) {
+            this.logger.info("Channels: ", this.channels);
+            throw new Error("Can't return channel " + channelNo + " because it doesn't exist.");
+        }
+        if(channel.state == ChannelPool.CS_AWAITING_REPLY) { 
             this.logger.info("channel " + channelNo + " is pending reply on close");
-            this.channels[channelNo-1] = {type:"na", channelNo:channelNo, state:CS_CLOSING};
+            this.channels[channelNo-1] = {type:"na", channelNo:channelNo, state:ChannelPool.CS_CLOSING};
             closeChannel(channelNo); // dont wait on it here
         }
         else {
-            this.channels[channelNo-1] = {type:"idle", channelNo:channelNo, state:CS_OPEN};
+            this.channels[channelNo-1] = {type:"idle", channelNo:channelNo, state:ChannelPool.CS_OPEN, deliveryTags:{}};
         }
         
         // we might need to free resources later if we introduce maxIdle config
@@ -170,7 +177,7 @@ class ChannelPool
                 let channel = this.channels[channelNo-1];
 
                 if(!channel)
-                    channel = this.channels[channelNo-1] = {channelNo: channelNo, state:ChannelPool.CS_OPENING, type:"idle"};
+                    channel = this.channels[channelNo-1] = {channelNo: channelNo, state:ChannelPool.CS_OPENING, type:"idle", deliveryTags:{}};
                 else if(!(channel.state == ChannelPool.CS_CLOSED || channel.state == ChannelPool.CS_ERROR)) {
                     throw new Error("Channel " + channelNo + " is not closed, can't open: ", channel);
                 }
@@ -205,7 +212,7 @@ class ChannelPool
                         this.channels[channelNo-1].state = ChannelPool.CS_CLOSING;
                         // shut down lingering consumers ?
                         
-                        this.amqpConnection.channel['close-ok'](channelNo, (err) => 
+                        this.ecc.amqpConnection.channel['close-ok'](channelNo, (err) => 
                             {
                                 if(err) {
                                     this.logger.error("error seding close-ok on channel " + channelNo + ": ", err);

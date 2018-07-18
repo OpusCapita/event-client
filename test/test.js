@@ -54,14 +54,16 @@ describe('Main', () =>
         await sleep(500);
         //await sleep(500000);
 
-        await client.emit(routingKey, input);
+        let dueDate = new Date();
+        dueDate.setTime( Math.floor((dueDate.getTime()/1000)) * 1000);
+        await client.emit(routingKey, input, {due: dueDate, length: 22.45});
 
         await sleep(500);
 
         assert.equal(await client.exchangeExists('event-client'), true);
 
         assert.deepEqual(result.payload, input);
-        assert.deepEqual(result.context, { truth : 42, senderService : 'event-client' });
+        assert.deepEqual(result.context, { truth : 42, due: dueDate, length: 22.45, senderService : 'event-client' });
         assert.equal(result.key, routingKey);
 
         assert.equal(await client.unsubscribe(routingKey), true);
