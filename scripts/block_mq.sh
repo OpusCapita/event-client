@@ -1,1 +1,1 @@
-docker exec eventclient_rabbitmq_1 rabbitmqctl set_vm_memory_high_watermark absolute 20MB
+docker exec eventclient_rabbit2_1 rabbitmqctl set_vm_memory_high_watermark absolute 20MB

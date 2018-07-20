@@ -8,9 +8,9 @@ $DIR/block_mq.sh
 sleep 20
 
 echo "2. stopping mq"
-docker-compose stop rabbitmq
+docker-compose stop rabbitmq2
 sleep 10
 
 
 echo "2. starting mq"
-docker-compose start rabbitmq
+docker-compose start rabbitmq2
