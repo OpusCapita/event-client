@@ -210,9 +210,6 @@ EventClient.DefaultConfig = {
         password : null
     },
     context : {
-    },
-    pool : {
-        minIdle: 2
     }
 }
 module.exports = EventClient;
@@ -902,6 +899,10 @@ class EventClientCore
     async destroySocket() {
         if (this.socket)
         {
+            if(this.socket.destroyed) {
+                this.logger.info("socket already destroyed!");
+                return Promise.resolve(true);
+            }
             let errMsg = "Socket destroyed";
             this.logger.warn("destroying socket, current connectionState " + this.connectionState);
             return new Promise((resolve,reject) => {
@@ -946,6 +947,23 @@ class EventClientCore
         console.log("amqpConnectionErrorHandler done");
     }
     
+    async reconnect() {
+        // we need to establish a connection (as in init)  
+        // but then we also need to emit any pending messages
+        // and reopen all consumer channels
+        this.logger.info("reconnnecting...");
+        try {
+            await this.connect();
+        }
+        catch(e) {
+            this.logger.error("reconnect attempt failed: ", e);
+            throw e;
+        }
+        
+        this.logger.info("re establishing consumers...");
+        this.logger.info("reconnect done");
+    }
+    
     async connect()
     {
         if(this.connectionState > 1)
@@ -965,8 +983,24 @@ class EventClientCore
             port: connectionConfig.port,
             host: connectionConfig.host
         });
-        this.socket.on('error', (err) => {
+        this.socket.on('error', async (err) => {
             console.error("Socket error handler: ", err);
+            if(err.code == "ECONNRESET") {
+                this.logger.error("Connection has been closed by server, destroying socket...");
+                this.connectionState = 5; // set to closing
+                
+                // now we lost the connection, so it means all channels are down and we dont have a valid amqp connection handle
+                try {
+                    await this.destroySocket();
+                }
+                catch(e) {
+                    this.logger.error("error destroying socket: ", e);
+                }
+                this.connectionState = 0;
+                const reconTimeout = 5000;
+                this.logger.info("scheduling reconnect in " + reconTimeout + " ms");
+                setTimeout(reconTimeout, this.reconnect);
+            }
         });
         
         await new Promise((resolve, reject) => {

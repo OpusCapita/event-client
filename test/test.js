@@ -85,7 +85,7 @@ describe('Main', () =>
         await client.init();
         
         let startTimeMillis = new Date().getTime();
-        let messageCount = 5;
+        let messageCount = 10;
         
         let emissionPromises = [];
         

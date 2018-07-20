@@ -3,9 +3,9 @@ const extend = require('extend');
 class ChannelPool
 {
     constructor(config, ecc) {
-        this.config = extend(true, { }, {pool:ChannelPool.DefaultConfig}, config);
+        this.config = extend(true, { }, ChannelPool.DefaultConfig, config);
+        console.log("ChannelPool config: ", this.config);
         this.logger = this.config.logger;
-        this.size = 0;
         this.channels = [] // channel number is one-based, so channels[0] is channel#1 etc. 
                            // channel have channelNo = channel number
                            // state: 0 - closed, 1 - opening, 2 - opened, 3 - error, 4 - closing, 5 - reply
@@ -64,7 +64,14 @@ class ChannelPool
       }
       
       // now we really need a new one
-      c = {channelNo:this.channels.length+1, type:"preparing", state:ChannelPool.CS_CLOSED};
+      c = await this.addChannel();
+      c.type = type;
+      this.checkAndResize();
+      return c;
+    }
+    
+    async addChannel() {
+      let c = {channelNo:this.channels.length+1, type:"preparing", state:ChannelPool.CS_CLOSED};
       this.logger.info("enlarging channel pool, adding ", c);
       this.channels.push(c);
       try {
@@ -74,14 +81,52 @@ class ChannelPool
           this.logger.error("failed opening channel ", c, ": ", e);
           throw new Error("failed opening " + JSON.stringify(c) ,e);
       }
-      c.type = type;
-      return c;
+      return c; 
+    }
+    
+    checkAndResize() {
+        console.log("check and resize: ", this.channels);
+        let idleChannels = [];
+        let preparingChannels = 0;
+        let closeableChannels = [];
+        for(let i = 0; i < this.channels.length; i++) {
+            let c = this.channels[i];
+            if( (c.type == "idle") && (c.state == ChannelPool.CS_OPEN || c.state == ChannelPool.CS_OPENING)) {
+                idleChannels.push(c);
+                if(c.state == ChannelPool.CS_OPEN){
+                    closeableChannels.push(c);
+                }
+            }
+            if( (c.type == "preparing") && (c.state == ChannelPool.CS_OPEN || c.state == ChannelPool.CS_OPENING)) {
+                preparingChannels++;
+            }
+        }
+        this.logger.info("current closable channels: " + closeableChannels.length + ", idleChannels: " + idleChannels.length + ", minIdle: " + this.config.pool.minIdle + ", maxIdle: " + this.config.pool.maxIdle);
+        if (idleChannels.length + preparingChannels < this.config.pool.minIdle) {
+            this.logger.info("pool resize found " + idleChannels.length + " idle channels, need min " + this.config.pool.minIdle + " ones, opening...");
+            for(let i = 0; i < this.config.pool.minIdle - idleChannels.length;i++) {
+                let nc = null;
+                try {
+                    c = addChannel(); // dont await, otherwise we get a race
+                }
+                catch(e) {
+                    this.logger.error();
+                }
+            }  
+        }
+        else if (idleChannels.length > this.config.pool.maxIdle) {
+            let channelsToClose = idleChannels.length - this.config.pool.maxIdle;
+            this.logger.info("pool resize found " + idleChannels.length + " idle channels, may have max " + this.config.pool.maxIdle + " ones, closing...");          
+            for(let i = 0; i < closeableChannels.length && i < channelsToClose; i++) {
+                this.closeChannel(closeableChannels[closeableChannels.length-1-i].channelNo); // dont wait on it
+            }
+        }
     }
     
     /** 
      * Will set the returned channel to idle so it can be leased again.
      */
-    async returnChannel(channelNo) {
+    returnChannel(channelNo) {
         this.logger.info("returning channel " + channelNo);
         let channel = this.channels[channelNo-1];
         if(!channel) {
@@ -89,7 +134,7 @@ class ChannelPool
             throw new Error("Can't return channel " + channelNo + " because it doesn't exist.");
         }
         if(channel.state == ChannelPool.CS_AWAITING_REPLY) { 
-            this.logger.info("channel " + channelNo + " is pending reply on close");
+            this.logger.info("channel " + channelNo + " is pending reply on being returned, closing it.");
             this.channels[channelNo-1] = {type:"na", channelNo:channelNo, state:ChannelPool.CS_CLOSING};
             closeChannel(channelNo); // dont wait on it here
         }
@@ -98,10 +143,16 @@ class ChannelPool
         }
         
         // we might need to free resources later if we introduce maxIdle config
+        this.checkAndResize();
+        
         return Promise.resolve(channelNo);
     }
     
-    async closeChannel(channelNo) {
+    /** 
+     * Immediately sets the channel state to closing, then returns a promise that resolves once the close was handshaked
+     * by the server or rejects if an error occurred during the closing.
+     */
+    closeChannel(channelNo) {
         this.logger.info("trying to close channel " + channelNo);
         let channel = this.channels[channelNo-1];
         if(!channel)
@@ -136,6 +187,7 @@ class ChannelPool
                         {
                             this.logger.error("error closing channel " + channelNo + ": ", err);
                             channel.state = ChannelPool.CS_ERROR;
+                            amqpConnection.removeAllListeners(topic);
                             reject(err);
                         }
                         else this.logger.info("channel " + channelNo + " close requested");
@@ -183,6 +235,9 @@ class ChannelPool
                         if(err)
                         {
                             this.logger.error("error opening channel " + channelNo + ": ", err);
+                            amqpConnection.removeAllListeners(topic);
+                            this.channels[channelNo-1].state = ChannelPool.CS_ERROR;
+                            this.channels[channelNo-1].type = "idle";
                             reject(err);
                         }
                         else this.logger.info("channel " + channelNo + " open requested");                      
@@ -214,7 +269,7 @@ class ChannelPool
     }
 }
 ChannelPool.DefaultConfig = {
-    pool: { minIdle: 2 }
+    pool: { minIdle: 1, maxIdle: 2 }
 }
 ChannelPool.CS_CLOSED = 0;
 ChannelPool.CS_OPENING = 1;
