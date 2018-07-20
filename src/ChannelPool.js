@@ -10,12 +10,15 @@ class ChannelPool
                            // channel have channelNo = channel number
                            // state: 0 - closed, 1 - opening, 2 - opened, 3 - error, 4 - closing, 5 - reply
         this.ecc = ecc;
+        this.state = 0; // 0 - down, 1 - init, 2 - running, 3 - resizing
     }
     
     /**
      * Initializes the pool by creating minIdle channels
      */
     async init() {
+        if(this.state != 0) throw new Error("trying to init channel pool that is already in state " + this.state);
+        this.state = 1;
         this.channels.push({channelNo: 1, state:ChannelPool.CS_OPEN, type:"mgmt"});
         for(let i = 0; i < this.config.pool.minIdle; i++) {
             let channelNo = i+2;
@@ -25,11 +28,13 @@ class ChannelPool
             }
             catch(e) {
                 this.logger.error("Unable to open channel " + channelNo + ": ", e);
+                this.state = 4;
                 throw e; // this is happening during init, so caller should handle
             }
             
         }
         this.logger.info("channel pool initialized, current channels: ", this.channels);
+        this.state = 2;
     }
     
     /**
@@ -37,67 +42,40 @@ class ChannelPool
      * Returns leased channel
      */
     async leaseChannel(type) {
-      // find next idle channel
-      let leasedChannel = null;
-      let channelNo = -1;
-      let idleCount = 0;
-      let openableChannels = [];
-      for(let i = 0; i < this.channels.length; i++) {
-          let channel = this.channels[i];
-          if(channel.type == "idle") {
-              if(channel.state == ChannelPool.CS_OPEN) {
-                  if(channelNo == -1) {
-                      channel.type = type;
-                      channelNo = channel.channelNo;
-                      leasedChannel = channel;
-                  }
-                  else idleCount++;
-              }
-          }
-          if(channel.state == ChannelPool.CS_CLOSED){
-              this.logger.info("found channel " + channel.channelNo + " in closed state");
-              openableChannels.push[channel.channelNo];
-          }
-          else if (channel.state == ChannelPool.CS_ERROR) {
-              this.logger.info("found channel " + channel.channelNo + " in error state");
-              openableChannels.push[channel.channelNo];
-          }
+      let c = this.channels.find( (c) => {return c.type == "idle" && c.state == ChannelPool.CS_OPEN});
+      if(c) {
+          c.type = type;
+          return c;
       }
-      let channelsToOpen = this.config.pool.minIdle - idleCount;
-      if(!leasedChannel) channelsToOpen++;
-      if(channelNo == -1) channelsToOpen++;
       
-      
-      let channel = null;
-      if(leasedChannel) {
-          this.logger.info("leasing channel " + leasedChannel.channelNo + ", idleCount now " + idleCount + ", minIdle = " + this.config.pool.minIdle);
-      }
-      this.logger.info("found " + openableChannels.length + " channels that can be reopened, going to open " + channelsToOpen + " new channels...");
-      let i = 0;
-      while(channelsToOpen > 0) {
-      //for(let i = this.channels.lenght; i < this.channels.length + channelsToOpen; i++) {
-          let channelNum = -1;
-          if(i < openableChannels.length)
-              channelNum = openableChannels[i];
-          else 
-              channelNum = this.channels.length + (i-openableChannels.length) + 1;
+      this.logger.info("no open idle channel found, checking openable ones...");
+      c = this.channels.find( (c) => {return c.type == "idle" && (c.state == ChannelPool.CS_CLOSED || c.state == ChannelPool.CS_ERROR) });
+      if(c) {
+          c.type == "preparing"; // make sure while we are opening it it isnt opened also by concurrent process
           try {
-              channel = await this.openChannel(channelNum);
-              if(channelNo == -1) {
-                  leasedChannel = channel;
-                  channelNo = channel.channelNo;
-              }
+              c = await this.openChannel(c.channelNo);          
           }
-          catch( e ) {
-              this.logger.error("error opening new channel " + channelNum, e);
-              throw e;
+          catch(e) {
+              this.logger.error("failed opening channel ", c, ": ", e);
+              throw new Error("failed opening " + JSON.stringify(c) ,e);
           }
-          channelsToOpen--;
+          c.type = type;
+          return c;
       }
-      this.logger.info("channels opened");
-      leasedChannel.type = type;
-      leasedChannel.leasedOn = new Date();
-      return leasedChannel;
+      
+      // now we really need a new one
+      c = {channelNo:this.channels.length+1, type:"preparing", state:ChannelPool.CS_CLOSED};
+      this.logger.info("enlarging channel pool, adding ", c);
+      this.channels.push(c);
+      try {
+          c = await this.openChannel(c.channelNo);          
+      }
+      catch(e) {
+          this.logger.error("failed opening channel ", c, ": ", e);
+          throw new Error("failed opening " + JSON.stringify(c) ,e);
+      }
+      c.type = type;
+      return c;
     }
     
     /** 
@@ -168,7 +146,7 @@ class ChannelPool
     }
     
     /**
-     * Returns promis that resolves to opened channel or reject with error
+     * Returns promise that resolves to opened channel or reject with error
      */
     async openChannel(channelNo) {
         this.logger.info("trying to open new channel " + channelNo);
@@ -176,10 +154,15 @@ class ChannelPool
             {
                 let channel = this.channels[channelNo-1];
 
-                if(!channel)
+                if(!channel) {
+                    this.logger.info("openChannel(" + channelNo + "), channel not in pool yet, adding...");
                     channel = this.channels[channelNo-1] = {channelNo: channelNo, state:ChannelPool.CS_OPENING, type:"idle", deliveryTags:{}};
-                else if(!(channel.state == ChannelPool.CS_CLOSED || channel.state == ChannelPool.CS_ERROR)) {
-                    throw new Error("Channel " + channelNo + " is not closed, can't open: ", channel);
+                }
+                else {
+                    this.logger.info("openChannel(" + channelNo + "), channel found: ", channel);
+                    if(!(channel.state == ChannelPool.CS_CLOSED || channel.state == ChannelPool.CS_ERROR)) {
+                        throw new Error("Channel " + channelNo + " is not closed, can't open: ", channel);
+                    }
                 }
                 channel.state = ChannelPool.CS_OPENING;
                 

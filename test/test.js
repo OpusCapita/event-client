@@ -40,7 +40,7 @@ describe('Main', () =>
         try {
             await client.subscribe(routingKey, async (payload, context, key) =>
             {
-                delete context.timestamp;
+                //delete context.timestamp;
   
                 result.payload = payload;
                 result.context = context;
@@ -63,7 +63,7 @@ describe('Main', () =>
         assert.equal(await client.exchangeExists('event-client'), true);
 
         assert.deepEqual(result.payload, input);
-        assert.deepEqual(result.context, { truth : 42, due: dueDate, length: 22.45, senderService : 'event-client' });
+        assert.deepEqual(result.context, { truth : 42, due: dueDate, length: 22.45 });
         assert.equal(result.key, routingKey);
 
         assert.equal(await client.unsubscribe(routingKey), true);
@@ -71,7 +71,74 @@ describe('Main', () =>
         await client.dispose();
     });
 
-/*    it('Simple test (reconnect)', async () =>
+    
+    it('Parallel emit / consume (1 client)', async () =>
+    {
+        const client = new EventClient({ logger : new Logger(), context : { nix : 1 } });
+
+        client.contextify({ truth : 42 });
+
+        const routingKey = 'event-client.Test';
+        const getMessageBody = (i) => { return { message: 'Message ' + i + ' payload' }; };
+        const result =  { };
+
+        await client.init();
+        
+        let startTimeMillis = new Date().getTime();
+        let messageCount = 5;
+        
+        let emissionPromises = [];
+        
+        for(let i = 0; i < messageCount; i++) {
+          emissionPromises.push(client.emit(routingKey, getMessageBody(i), {messageNumber: i}));
+        }
+        
+        let receivedMessages = [];
+        
+        Promise.all(emissionPromises)
+        .then( async () => {
+            try {
+                await client.subscribe(routingKey, async (payload, context, key) =>
+                {
+                    let result = {};
+                    result.payload = payload;
+                    result.context = context;
+                    result.key = key;
+                    receivedMessages.push(result);
+                })
+            }
+            catch(e) {
+                console.log("error subscribing: ", e);
+                throw e;
+            }
+        });
+        
+        while(new Date().getTime()-startTimeMillis < 3000 && receivedMessages.length < messageCount) {
+            console.log("messages arrived so far: " + receivedMessages.length + ", waiting another 500 ms...");
+            await sleep(500);
+        }
+        
+        for(i = 0; i < messageCount; i++) {
+            // make sure each message was correctly received
+            let message = null;
+            for(let j = 0; j < messageCount; j++) {
+                if(receivedMessages[j].context.messageNumber == i)
+                    message = receivedMessages[j];
+            }
+            assert.equal(message && message.payload != null, true);
+            assert.equal(message.context.messageNumber, i);
+            assert.deepEqual(getMessageBody(i), message.payload);
+        }
+
+
+        assert.equal(await client.unsubscribe(routingKey), true);
+
+        await client.dispose();
+
+    });
+
+
+    /*    it('Simple test (reconnect)', async () =>
     {
         const client = new EventClient({ logger : Logger.DummyLogger, context : { nix : 1 } });
 

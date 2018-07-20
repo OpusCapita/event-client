@@ -6,3 +6,4 @@ services:
         - ./src:/home/node/event-client/src
         - ./test:/home/node/event-client/test
         - ./wiki:/home/node/event-client/wiki
+        - ./../bramqp:/home/node/event-client/node_modules/bramqp

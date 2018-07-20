@@ -5,6 +5,7 @@ const util = require('util');
 const Logger = require('ocbesbn-logger').setDebugMode(true);
 const ChannelPool = require('./ChannelPool');
 const Promise = require('bluebird');
+const uuidv4 = require('uuid/v4');
 
 /**
  * This is a thin wrapper around EventClientCore
@@ -16,17 +17,18 @@ class EventClient
     constructor(config)
     {
         this.config = extend(true, { }, EventClient.DefaultConfig, config);
-        console.log("<<< EventClient config: ", this.config);
+        //console.log("<<< EventClient config: ", this.config);
         if(!this.config.logger)
             this.config.logger = new Logger();
         this.logger = this.config.logger;
         this.core = getSingletonCore();
-        this.consumers = {};
+        this.consumers = {}; // map of topic -> consumer channel descriptor
+        this.instanceId = uuidv4();
     }
 
     init() {
         console.log("EventClient.init()");
-        return this.core.init(this.config)
+        return this.core.init(this)
         .then( () => {
             this.logger.info("Core initialization done\n\n");
         })
@@ -35,6 +37,18 @@ class EventClient
         });
     }
 
+    /**
+     * Closes all publisher and subscriber channels held by this instance. If this is the last event client instance, it will also tear
+     * down the shared core.
+     *
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to true or rejecting with an error.
+     */
+    dispose()
+    {
+        this.logger.info("unregistering client with id " + this.instanceId);
+        return this.core.unregisterClient(this.instanceId);
+    }
+    
     /**
      * Allows adding a default context to every event emitted.
      * You may also want to construct an instance of this class by passing the context
@@ -45,6 +59,41 @@ class EventClient
         this.config.context = context || { };
     }
     
+    /**
+     * This method allows you to unsubscribe from a previous subscribed *topic* or pattern.
+     *
+     * @param {string} topic - Full name of a topic or a pattern.
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to true or false depending on whenever the topic existed in the subscriptions.
+     */
+    unsubscribe(topic)
+    {
+        if(this.core.state != 3)
+            return Promise.reject("Can't subscribe " + topic + ": Core not initialized, current state " + this.core.state);
+        let consumer = this.consumers[topic];
+        let existing = false;
+        if(!consumer) {
+            this.logger.warn("cannot unsubscribe from topic: " + topic + ", no consumer registerd.");
+            //throw new Error("failed to unsubscribe, topic " + topic + " not registered");
+        }
+        else existing = true;
+        try {
+            return this.core.unsubscribe(topic)
+            .then( (channel) => {
+                delete this.consumers[topic];
+                return Promise.resolve(existing);
+            })
+            .catch( (err) => {
+                this.logger.error("error in unsubscribe " +  topic + ": ", err);
+                throw err;
+            });
+        }
+        catch(e) {
+            this.logger.error("Unsubscription of topic " + topic + " failed: ", e);
+            throw e;
+        }
+        
+    }
+
     subscribe(topic, callback = null, opts = { })
     {
         if(this.core.state != 3)
@@ -56,7 +105,7 @@ class EventClient
         return this.core.subscribe(topic, callback, opts)
         .then( (result) => {
             this.consumers[topic] = result;
-            this.logger.info("adding consumer info: ", result);
+            //this.logger.info("adding consumer info: ", result);
         })
         .catch( (err) => {
             this.logger.error("Subscribe failed:", err);
@@ -85,14 +134,13 @@ class EventClient
             return Promise.reject("Can't publish event Core not initialized, current state " + this.core.state);
 
         let localContext = {
-            senderService : this.core.serviceName,
-            timestamp : new Date().toString()
+            //senderService : this.core.serviceName,
+            //timestamp : new Date().toString()
         };
 
-        console.log("calling extend (true, {}, " + JSON.stringify(this.config.context) + ", " + JSON.stringify(context) + ", " + JSON.stringify(localContext) + ")");
         localContext = extend(true, { }, this.config.context, context, localContext);
-        console.log("extend result: " + JSON.stringify(localContext));
-        const messageId = `${this.serviceName}.${crypto.randomBytes(16).toString('hex')}`;
+        //console.log("extend result: " + JSON.stringify(localContext));
+        const messageId = `${this.core.serviceName}.${crypto.randomBytes(16).toString('hex')}`;
         let payload = this.config.serializer(message);
         
         const options = {
@@ -102,7 +150,7 @@ class EventClient
             contentEncoding : 'utf-8',
             timestamp : new Date(),
             correlationId : context && context.correlationId,
-            appId : this.serviceName,
+            appId : this.core.serviceName,
             messageId : messageId,
             headers : localContext
         };
@@ -184,18 +232,77 @@ class EventClientCore
         //this.pubChannel = null;
         //this.callbackErrorCount = { };
 
-        this.state = 0; // 0 = new, 1 = should initialize, 2 = initializing, 3 = initialized
-        this.connectionState = 0; // 0 = new, 1 = should connect, 2 = connecting, 3 = connected, 4 = comms ok
+        this.state = 0; // 0 = new, 1 = should initialize, 2 = initializing, 3 = initialized, 4 - disposing, 
+        this.connectionState = 0; // 0 = new, 1 = should connect, 2 = connecting, 3 = connected, 4 = comms ok, 5 = closing
         this.consumers = {};
+        this.clients = {};
     }
 
-    async init(config) 
+    async unregisterClient(instanceid) {
+        let instance = this.clients[instanceid];
+        if(!instance) throw new Error("core doesn't know an instance of eventclient with id " + instanceid);
+        let cancelPromises = [];
+        for(let consumer in instance.consumers) {
+            console.log("selecting consumer ", consumer, " for unregistering due to dispose()...");
+            // we need to cancel consumer then return channel
+            cancelPromises.push(
+                this.unsubscribe(consumer.consumerTopic)
+            );
+        }
+        return Promise.all(cancelPromises)
+        .then( () => {
+            delete this.clients[instanceid];
+            // now check whether the lasdt client instance was taken down
+            if(Object.keys(this.clients).length <1) {
+                this.logger.warn("last instance has been unregistered from event client core, shutting down.");
+                return this.dispose();
+            }
+            else {
+                this.logger.info("core staying up, " + Object.keys(this.clients).length + " instances remaining...", this.clients);
+            }
+            return Promise.resolve(true);
+        });
+    }
+    
+    async dispose() {
+        if(this.state == 4) {
+            throw new Error("can't dispose as already in state closing");
+        }
+        
+        this.connectionState = 5;
+        
+        return Promise.fromCallback( (cb) => {
+            //this.amqpConnection.removeAllListeners();
+            this.socket.removeAllListeners('error');
+            this.socket.on('close', () => {
+                this.logger.info("Socket has been closed");
+                this.socket.removeAllListeners();
+                this.socket = null;
+                this.connectionState = 0;
+            });
+            this.logger.info("shutting down amqp comms...");
+            this.amqpConnection.closeAMQPCommunication( cb );
+            
+        })
+        .then( () => {
+            this.logger.info("destroying socket");
+            return this.destroySocket();
+        })
+        .then( () => {this.state = 0; this.logger.info("core disposed.");});
+    }
+    
+    async init(eventclientinst) 
     {
+        let config = eventclientinst.config;
+        if(this.clients[eventclientinst.instanceId]) {
+            throw new Error("This client instance " + eventclientinst.instanceId + " has already called init on core.");
+        }
+        this.clients[eventclientinst.instanceId] = eventclientinst;
         if(this.state < 2) {
             this.state = 2;
             this.config = config;
             this.logger = this.config.logger;
-            this.logger.info("Initializing EventClientCore with config ", this.config);
+            this.logger.info("Initializing EventClientCore"); // with config ", this.config);
         }
         else 
         {
@@ -260,6 +367,9 @@ class EventClientCore
         catch(e) {
             this.logger.error("Error querying exchange on channel " + channel.channelNo + ": ", e);
             throw e; // maybe handle this transparently ?
+        }
+        finally {
+            await this.channelPool.returnChannel(channel.channelNo);
         }
         return null;
     }
@@ -379,6 +489,7 @@ class EventClientCore
         }
         catch(e) {
             this.logger.error("Error publishing message on channel " + channel.channelNo + ": ", e);
+            this.channelPool.returnChannel(channel.channelNo);
             throw e; // maybe handle this transparently ?
         }
         return null;
@@ -432,6 +543,97 @@ class EventClientCore
         });
     }
 
+    getConsumerChannel(topic) {
+        for(let c of this.channelPool.channels) {
+            //console.log("checking channel ", c);
+            if(c.type == "consumer") {
+                if(c.consumerTopic == topic) {
+                    //console.log("returning channel ", c)
+                    return c;
+                }
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Returns the channel descriptor that held the subscription after clearing the consumer.
+     */
+    async unsubscribe(topic) {
+        if(this.connectionState != 4){
+            this.logger.error("Trying to unsubscribe on unconnected core, connectionState = " + this.connectionState);
+            throw new Error("Trying to unsubscribe on unconnected core, connectionState = " + this.connectionState);
+        }
+        
+        
+        this.logger.info("Getting channel to unsubscribe " + this.queueName(topic) + "...");
+        let channel = this.getConsumerChannel(topic);
+        this.logger.info("unsubscribing ", channel.channelNo);
+        if(!channel) return null;
+        try {
+            channel = await this.cancelQueue(channel);
+        }
+        catch(e) {
+            this.logger.error("Error canceling consumer on channel " + JSON.stringify(channel) + ": ", e);
+            throw e; // maybe handle this transparently ?
+        }
+        finally {
+            this.channelPool.returnChannel(channel.channelNo);
+        }
+    }
+
+    /**
+     * Channel needs to be a channel descriptor
+     */
+    async cancelQueue(channel) {
+
+        let eventName = '' + channel.channelNo + ':basic.cancel-ok';
+        let queueName = this.queueName(channel.consumerTopic);
+        return new Promise((resolve, reject) => {
+            this.logger.info("canceling queue with name " + queueName);
+            
+            try {
+                // channel#, queueName, consumerTag, no-local, no-ack, exclusive, no-wait, args
+                this.amqpConnection.once(eventName, (channelNo, method, data)  =>
+                    {
+                        this.logger.info("handshake for canceling queue " + queueName + " via channel " + channel.channelNo + " received, data: ", data);
+                        
+                        delete channel.consumerTag;
+                        delete channel.consumerCallback;
+                        delete channel.consumerTopic;
+                        
+                        this.removeEventListenersByEventName(''+channel.channelNo+':basic.deliver');
+                        
+                        channel.state = ChannelPool.CS_OPEN;   
+                        channel.type = "idle";                        
+                        resolve(channel);
+                    }
+                );
+                this.amqpConnection.basic.cancel(channel.channelNo, channel.consumerTag, false, (err) =>
+                    {
+                        if(err) {
+                            this.logger.error("Error canceling channel " + channel.channelNo + ": ", err);
+                            channel.state = ChannelPool.CS_ERROR;
+                            this.removeEventListenersByEventName(eventName);
+                            reject(err);
+                        }
+                        else {
+                            this.logger.info("Cancel for channel " + channel.channelNo + " sent, waiting for handshake...");
+                            
+                            // only resolve once we got the handshake
+                            channel.state = ChannelPool.CS_AWAITING_REPLY;
+                        }
+                    }
+                );
+            }
+            catch(e) {
+                this.logger.error("Error canceling channel " + channel.channelNo, e);
+                channel.state = ChannelPool.CS_ERROR;
+                reject(e);
+            }
+        });
+    }
+
     /**
      * Callback gets three args: payload, context, routingkey and is called for each message
      * incoming. If callback throws ro rejects, message is considered NOT processed
@@ -455,7 +657,7 @@ class EventClientCore
         }
         this.logger.info("Declaring queue " + this.queueName(topic) + " on channel " + channel.channelNo);
         try {
-            await this.declareQueue(channel.channelNo, topic);
+            await this.declareQueue(channel, topic);
         }
         catch( e ) {
             this.logger.error("Error declaring queue for topic " + topic, e);
@@ -463,7 +665,7 @@ class EventClientCore
         }
         try {
             let exchange = topic.substring(0, topic.indexOf('.'));
-            await this.bindQueue(channel.channelNo, exchange, topic);
+            await this.bindQueue(channel, exchange, topic);
         }
         catch( e ) {
             this.logger.error("Error binding queue for topic " + topic, e);
@@ -549,9 +751,10 @@ class EventClientCore
     /**
      * Queues always belong to the service running event-client, but they can be bound to other services' exchanges
      */
-    async bindQueue(channelNo, exchangeName, topic) {
+    async bindQueue(channel, exchangeName, topic) {
+        let channelNo = channel.channelNo;
         let eventName = ''+channelNo+':queue.bind-ok';
-        let channel = this.channelPool.channels[channelNo-1];
+        
         return new Promise((resolve, reject) => {
             let queueName = this.queueName(topic);
             let routingKey = topic;
@@ -588,9 +791,9 @@ class EventClientCore
         });
     }
 
-    async declareQueue(channelNo, topic) {
+    async declareQueue(channel, topic) {
          
-        let channel = this.channelPool.channels[channelNo-1];
+        let channelNo = channel.channelNo;
         let eventName = ''+channelNo+':queue.declare-ok';
         // channel#, queueName, passive, durable, exclusive, auto-delete, no-wait, args
         // note that args can be used to control mirroring, as per https://www.rabbitmq.com/ha.html
@@ -649,10 +852,14 @@ class EventClientCore
         }
     }
     
-    removeEventListenersByEventName(amqpConnection, ename) {
-        let listeners = amqpConnection.listeners(ename);
+    removeEventListenersByEventName(ename) {
+        let listeners = this.amqpConnection.listeners(ename);
         this.logger.info("removing " + listeners.length + " event listeners for event name " + ename);
-        listeners.forEach( (l) => {amqpConnection.removeListener(l)});
+        listeners.forEach( (l) => {
+            //console.log("listener type " + (typeof l) + ", listener: ", l);
+            this.amqpConnection.removeListener(ename, l);
+            
+        });
     }
 
     async declareExchange(channel, exchangeName = this.exchangeName, passive = false) {
@@ -692,15 +899,22 @@ class EventClientCore
         });
     }
 
-    destroySocket() {
+    async destroySocket() {
         if (this.socket)
         {
+            let errMsg = "Socket destroyed";
             this.logger.warn("destroying socket, current connectionState " + this.connectionState);
-            try {
-                this.socket.destroy("Socket destroyed");
-            }
-            catch(err) { this.logger.error("Error destroying socket: ",err)}
+            return new Promise((resolve,reject) => {
+                this.socket.on('error', (err) => {
+                    this.logger.info("socket error: ",err)
+                    if(err && err == errMsg)
+                        resolve(true);
+                    else reject(err);
+                });
+                this.socket.destroy(errMsg);
+            });
         }
+        else return false;
     }
 
     async amqpConnectionErrorHandler(error) 
@@ -712,17 +926,17 @@ class EventClientCore
           this.connectionState = 1;
           this.logger.info("Resetting amqp connection");
           await new Promise( (resolve,reject) => {
-              this.amqpConnection.closeAMQPCommunication( function(err)
+              this.amqpConnection.closeAMQPCommunication( async function(err)
               {
                 if(err) {
                   this.logger.error("Error closing amqp comms: ", err);
-                  this.destroySocket();
+                  await this.destroySocket();
                   this.connectionState = 1;
                   reject(err);
                 }
                 else {
                   this.logger.error("Closed amqp comms, destroying socket");
-                  this.destroySocket();
+                  await this.destroySocket();
                   this.connectionState = 1;
                   resolve();
                 }
@@ -743,7 +957,7 @@ class EventClientCore
         let connectionConfig = await this.getAmqpConnectionDetails();
         this.logger.info("using amqp connection details: ", connectionConfig);
         if (this.socket)
-            destroySocket();
+            await this.destroySocket();
 
         this.logger.info("Connecting to " + connectionConfig.host + ":" + connectionConfig.port + "...");
 
@@ -784,9 +998,9 @@ class EventClientCore
             this.logger.info("Connected to " + connectionConfig.host + ":" + connectionConfig.port);
             this.connectionState = 3;
         })
-        .catch( (err) => {
+        .catch( async (err) => {
             this.logger.error("Error establishing amqp connection: ", err);
-            destroySocket();
+            await destroySocket();
             this.connectionState = 1; // set back to unconnected
         });
 
@@ -804,9 +1018,9 @@ class EventClientCore
             this.logger.info("AMQP Comms started, channel 1 opened, registering content listener..."); 
             this.connectionState = 4;
         })
-        .catch( (err) => {
+        .catch( async (err) => {
             this.logger.error("AMQP Comms can't be established, resetting", err);
-            this.destroySocket();
+            await this.destroySocket();
             this.connectionState = 1;
         })
         .then( () => {
@@ -827,7 +1041,7 @@ class EventClientCore
                 console.log("content received on channel " + channelNo + ", classname " + classname + ", properties: " + JSON.stringify(properties) + ", content: ", content);
                 // find consumer
                 let channel = this.channelPool.channels[channelNo-1];
-                this.logger.info("channel found: ", channel);
+                this.logger.debug("channel found: ", channel.channelNo);
                 if(!channel.state == ChannelPool.CS_CONTENT) {
                     this.logger.error("Expected channel to be in state CS_CONTENT, in fact it is in " + channel.state);
                     throw new Error("Channel " + channelNo + " state error on content, state = " + channel.state);
@@ -976,7 +1190,7 @@ function getSingletonCore(config) {
       for(let k in obj) {
         let v = obj[k];
         let ktype = typeof v;
-        console.log("processing key " + k + ", value " + v + ", type " + ktype);
+        //console.log("processing key " + k + ", value " + v + ", type " + ktype);
         if(ktype == "number") {
           if((""+v).indexOf('.') > -1) {
             ktype = "float";
