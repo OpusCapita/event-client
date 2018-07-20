@@ -4,27 +4,51 @@ services:
         build: .
         depends_on:
             - registrator
-            - rabbitmq
+            - rabbit2
             - consul
         environment:
             RABBITMQ_USER: $RABBITMQ_USER
             RABBITMQ_PASS: $RABBITMQ_PASS
 
-    rabbitmq:
-        image: rabbitmq:3-management
+    rabbit1:
+        image: opuscapita/rabbitmq:dev
+        hostname: rabbit1
         ports:
             - '4369:4369'
             - '5671:5671'
             - '5672:5672'
             - '15672:15672'
+            - '25672:25672'
+            - '6666:6666'
         environment:
             RABBITMQ_DEFAULT_USER: $RABBITMQ_USER
             RABBITMQ_DEFAULT_PASS: $RABBITMQ_PASS
             SERVICE_5672_NAME: 'rabbitmq-amqp'
+            RABBITMQ_ERLANG_COOKIE: $RABBITMQ_ERLANG_COOKIE
+            KILL_PORT: 6666
+
+    rabbit2:
+        image: opuscapita/rabbitmq:dev
+        hostname: rabbit2
+        ports:
+            - '4370:4369'
+            - '5673:5671'
+            - '5674:5672'
+            - '15673:15672'
+            - '25673:25672'
+            - '6667:6666'
+        environment:
+            RABBITMQ_DEFAULT_USER: $RABBITMQ_USER
+            RABBITMQ_DEFAULT_PASS: $RABBITMQ_PASS
+            SERVICE_5672_NAME: 'rabbitmq-amqp'
+            RABBITMQ_ERLANG_COOKIE: $RABBITMQ_ERLANG_COOKIE
+            KILL_PORT: 6666
+        depends_on:
+            - rabbit1
 
     registrator:
         image: gliderlabs/registrator
-        command: consul://consul:8500
+        command: -internal consul://consul:8500
         volumes:
             - /var/run/docker.sock:/tmp/docker.sock
         depends_on:
