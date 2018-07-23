@@ -120,46 +120,6 @@ describe('EventClient multiple instances', () => {
         await subscriberClient.unsubscribe(routingKey);
     });
 
-    it('Multiple (different) instances', async () =>
-    {
-        let iteration = 0;
-
-        const routingKey = 'event-client.Instances';
-        const input = { message: 'Test-ACK-Value' };
-
-        publisherClient = new EventClient({ logger : Logger.DummyLogger });
-        subscriberClient1 = new EventClient({ logger : Logger.DummyLogger, consulOverride });
-        subscriberClient2 = new EventClient({ logger : Logger.DummyLogger });
-
-        const callback = (payload, context, key) =>
-        {
-            iteration++;
-
-            assert.deepEqual(payload, input);
-
-            if(iteration === 1)
-                return false;
-            if(iteration === 2)
-                throw new Error();
-        };
-
-        await Promise.all([
-            subscriberClient1.subscribe(routingKey, callback),
-            subscriberClient2.subscribe(routingKey, callback, { messageLimit : 5 })
-        ]);
-
-        await publisherClient.emit(routingKey, input);
-
-        await sleep(2000);
-
-        assert.equal(iteration, 3);
-
-        await Promise.all([
-            subscriberClient1.unsubscribe(routingKey),
-            subscriberClient2.unsubscribe(routingKey)
-        ]);
-    });
-
     it('Pattern test (2 clients)', async () =>
     {
         publisherClient = new EventClient({ logger : Logger.DummyLogger, new : 1 });
