@@ -12,9 +12,7 @@ describe('EventClient multiple instances', () => {
         publisherClient,
         subscriberClient,
         subscriberClient1,
-        subscriberClient2,
-        client1,
-        client2;
+        subscriberClient2;
 
     before('Init', async () =>
     {
@@ -41,8 +39,6 @@ describe('EventClient multiple instances', () => {
             subscriberClient && await subscriberClient.dispose();
             subscriberClient1 && await subscriberClient1.dispose();
             subscriberClient2 && await subscriberClient2.dispose();
-            client1 && await client1.dispose();
-            client2 && await client2.dispose();
     });
 
     it('Simple test (2 clients)', async () =>
@@ -154,18 +150,18 @@ describe('EventClient multiple instances', () => {
 
     it('Double subscription (2 clients)', async () =>
     {
-        client1 = new EventClient({ logger : Logger.DummyLogger });
-        client2 = new EventClient({ logger : Logger.DummyLogger });
+        subscriberClient1 = new EventClient({ logger : Logger.DummyLogger });
+        subscriberClient2 = new EventClient({ logger : Logger.DummyLogger });
 
         const routingKey = 'event-client.Test';
         const input = { message: 'Simple_Test' };
         let result = false;
 
-        await client1.init();
-        await client2.init();
+        await subscriberClient1.init();
+        await subscriberClient2.init();
 
-        await client1.subscribe(routingKey, async (payload, context, key) => null);
-        await client2.subscribe(routingKey, async (payload, context, key) => null).catch(e => result = true);
+        await subscriberClient1.subscribe(routingKey, async (payload, context, key) => null);
+        await subscriberClient2.subscribe(routingKey, async (payload, context, key) => null).catch(e => result = true);
 
         assert.equal(result, true);
 
