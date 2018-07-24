@@ -26,6 +26,8 @@ services:
             SERVICE_5672_NAME: 'rabbitmq-amqp'
             RABBITMQ_ERLANG_COOKIE: $RABBITMQ_ERLANG_COOKIE
             KILL_PORT: 6666
+        depends_on:
+            - consul
 
     rabbit2:
         image: opuscapita/rabbitmq:dev
@@ -45,6 +47,7 @@ services:
             KILL_PORT: 6666
         depends_on:
             - rabbit1
+            - consul
 
     registrator:
         image: gliderlabs/registrator
