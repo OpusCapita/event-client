@@ -106,7 +106,7 @@ describe('EventClient: connection blocked behaviour', () =>
 
         await rabbitCmd.blockRabbit(1);
         await rabbitCmd.blockRabbit(2);
-        sleep(500);
+        await sleep(500);
 
         await publisherClient.emit('event-client.test', { pickle: 'rick'}, null, {ttl: 1000});
 
@@ -121,6 +121,57 @@ describe('EventClient: connection blocked behaviour', () =>
 
         assert.strictEqual(state, publisherClient.connection.constructor.CS_BLOCKED);
     });
+
+    it('Should not send the message that triggered the block state twice (eg. on flushWaitQueue)', async () => {
+        const routingKey = 'event-client.test.waitqueue';
+        let receivedCounter = 0;
+
+        await publisherClient.init();
+        await subscriberClient.init();
+
+        let waitOnBlock = new Promise((resolve) => {
+            publisherClient.connection.events.on('connection_blocked', () => resolve(true));
+        });
+        let waitOnUnblock = new Promise((resolve) => {
+            publisherClient.connection.events.on('connection_unblocked', () => resolve(true));
+        });
+        let waitOnFlush = new Promise((resolve) => {
+            publisherClient.pubChannel.events.on('waitqueue_flushed', () => resolve(true));
+        });
+
+        await publisherClient.emit(routingKey, {sent: Date.now()}, null, {ttl: 500});
+        await publisherClient.emit(routingKey, {sent: Date.now()}, null, {ttl: 500});
+        await publisherClient.emit(routingKey, {sent: Date.now()}, null, {ttl: 500});
+
+        await rabbitCmd.blockRabbit(1);
+        await rabbitCmd.blockRabbit(2);
+
+        await publisherClient.emit(routingKey, {should: 'block', sent: Date.now()}, null, {ttl: 500});
+
+        await publisherClient.emit(routingKey, {should: 'be in waitqueue', sent: Date.now()}, null, {ttl: 500});
+        await publisherClient.emit(routingKey, {should: 'be in waitqueue', sent: Date.now()}, null, {ttl: 500});
+
+        await waitOnBlock;
+
+        await rabbitCmd.unblockRabbit(1);
+        await rabbitCmd.unblockRabbit(2);
+
+        /* Wait for unblock event */
+        await waitOnUnblock;
+
+        await subscriberClient.subscribe(routingKey, () => {
+            receivedCounter++;
+            return true;
+        });
+
+        await waitOnFlush;
+        await sleep(600); // Give it one more second for the last message to be acked
+
+        assert.strictEqual(receivedCounter, 6);
+    });
+
+    it('Should allow dispose on blocked connections.');
+    it('EventClient#init should not wait indefintly when client comes up with broker in blocking state.');
 
     after('Shutdown', async () =>
     {
