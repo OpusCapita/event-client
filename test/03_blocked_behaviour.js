@@ -7,6 +7,8 @@ const configService = require('@opuscapita/config');
 const Logger = require('ocbesbn-logger');
 const {EventClient} = require('../lib');
 
+const rabbitCmd = require('./helpers/rabbitmq');
+
 const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
 
 describe('EventClient: connection blocked behaviour', () =>
@@ -36,8 +38,13 @@ describe('EventClient: connection blocked behaviour', () =>
     });
 
     afterEach(async () => {
-        await publisherClient.dispose();
-        await subscriberClient.dispose();
+        try {
+            await publisherClient.dispose();
+            await subscriberClient.dispose();
+        } catch (e) {
+            /* handle error */
+            console.error(e);
+        }
     });
 
     it('Should queue messages when the connection is in blocked.', async () => {
@@ -94,8 +101,30 @@ describe('EventClient: connection blocked behaviour', () =>
 
     });
 
+    it('Should change the connection state to BLOCKED on cluster warning', async () => {
+        await publisherClient.init();
+
+        await rabbitCmd.blockRabbit(1);
+        await rabbitCmd.blockRabbit(2);
+        sleep(500);
+
+        await publisherClient.emit('event-client.test', { pickle: 'rick'}, null, {ttl: 1000});
+
+        let state = publisherClient.connection.connectionState;
+
+        try {
+            await rabbitCmd.unblockRabbit(1);
+            await rabbitCmd.unblockRabbit(2);
+        } catch (e) {
+            console.log(e);
+        }
+
+        assert.strictEqual(state, publisherClient.connection.constructor.CS_BLOCKED);
+    });
+
     after('Shutdown', async () =>
     {
         await configService.dispose();
     });
+
 });
