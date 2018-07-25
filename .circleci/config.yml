@@ -17,6 +17,7 @@ jobs:
       - run:
           name: Testing
           command: |
+            docker-compose pull
             docker-compose build --no-cache
             docker-compose -f docker-compose.yml -f docker-compose.ci.yml run main npm run test
             docker-compose -f docker-compose.yml -f docker-compose.ci.yml run main npm run test-coverage
