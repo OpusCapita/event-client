@@ -1,15 +1,21 @@
+/* global after:true, before:true afterEach:true describe:true, it:true */
+/* eslint object-curly-spacing: 0 */
+/* eslint key-spacing: 0 */
+
 const assert = require('assert');
+
 const configService = require('@opuscapita/config');
 const Logger = require('ocbesbn-logger');
-const { EventClient } = require('../lib');
+const {EventClient} = require('../lib');
+const rabbitCmd = require('./helpers/rabbitmq');
 
 const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
+
 
 describe('EventClient single instance tests', () => {
 
     const consulOverride = { };
-    let allMqNodes,
-        client;
+    let client;
 
     before('Init', async () =>
     {
@@ -24,6 +30,9 @@ describe('EventClient single instance tests', () => {
         consulOverride.username = username;
         consulOverride.password = password;
 
+        await rabbitCmd.awaitRabbitCluster(endpoint, username, password);
+
+        return true;
     });
 
     after('Shutdown', async () =>
@@ -55,7 +64,7 @@ describe('EventClient single instance tests', () => {
             result.payload = payload;
             result.context = context;
             result.key = key;
-        })
+        });
 
         await sleep(500);
 

@@ -1,4 +1,5 @@
 const {exec} = require('child_process');
+const request = require('superagent');
 
 const COMMANDS = [
     'block', 'unblock',
@@ -55,7 +56,44 @@ async function doExec(node, command) {
     });
 }
 
+
+function awaitRabbitCluster({host}, username, password) {
+    let maxTries = 30;
+
+    return new Promise((resolve, reject) => {
+        let interval = setInterval(async () => {
+            maxTries--;
+
+            console.log('Waiting for rabbit cluster to come up with at least 2 nodes ... ' + maxTries);
+
+            let nodes;
+            try {
+                let url = `http://${host}:15672/api/nodes`;
+                let response = await request
+                    .get(url)
+                    .auth(username, password);
+
+                nodes = (response && response.body) ? response.body : [];
+            } catch (e) {
+                /* noop */
+            }
+
+            if (nodes && nodes.length >= 2) {
+                clearInterval(interval);
+                resolve(true);
+            }
+
+            if (maxTries <= 0) {
+                clearInterval(interval);
+                reject('Failed to connect to rabbit cluster');
+            }
+
+        }, 1000);
+    });
+};
+
 module.exports = {
+    awaitRabbitCluster,
     killRabbit,
     resurrectRabbit,
     blockRabbit,

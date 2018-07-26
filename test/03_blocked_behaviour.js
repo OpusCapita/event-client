@@ -30,6 +30,9 @@ describe('EventClient: connection blocked behaviour', () =>
         consulOverride.username = username;
         consulOverride.password = password;
 
+        await rabbitCmd.awaitRabbitCluster(endpoint, username, password);
+
+        return true;
     });
 
     beforeEach(() => {
