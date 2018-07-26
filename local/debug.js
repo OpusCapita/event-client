@@ -69,7 +69,7 @@ async function main() {
 }
 
 try {
-    // main();
+    main();
     console.log('Done');
 } catch (e) {
     /* handle error */

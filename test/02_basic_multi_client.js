@@ -38,10 +38,14 @@ describe('EventClient multiple instances', () => {
     });
 
     afterEach(async () => {
+        try {
             publisherClient && await publisherClient.dispose(); publisherClient = null;
             subscriberClient && await subscriberClient.dispose(); subscriberClient = null;
             subscriberClient1 && await subscriberClient1.dispose(); subscriberClient1 = null;
             subscriberClient2 && await subscriberClient2.dispose(); subscriberClient2 = null;
+        } catch (e) {
+            console.log(e);
+        }
     });
 
     it('Simple test (2 clients)', async () =>

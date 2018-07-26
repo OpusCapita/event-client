@@ -143,17 +143,17 @@ describe('EventClient: connection blocked behaviour', () =>
             publisherClient.pubChannel.events.on('waitqueue_flushed', () => resolve(true));
         });
 
-        await publisherClient.emit(routingKey, {sent: Date.now()}, null, {ttl: 500});
-        await publisherClient.emit(routingKey, {sent: Date.now()}, null, {ttl: 500});
-        await publisherClient.emit(routingKey, {sent: Date.now()}, null, {ttl: 500});
+        await publisherClient.emit(routingKey, {s: 0, sent: Date.now()}, null, {ttl: 500});
+        await publisherClient.emit(routingKey, {s: 1, sent: Date.now()}, null, {ttl: 500});
+        await publisherClient.emit(routingKey, {s: 2, sent: Date.now()}, null, {ttl: 500});
 
         await rabbitCmd.blockRabbit(1);
         await rabbitCmd.blockRabbit(2);
 
-        await publisherClient.emit(routingKey, {should: 'block', sent: Date.now()}, null, {ttl: 500});
+        await publisherClient.emit(routingKey, {s: 3, should: 'block', sent: Date.now()}, null, {ttl: 500});
 
-        await publisherClient.emit(routingKey, {should: 'be in waitqueue', sent: Date.now()}, null, {ttl: 500});
-        await publisherClient.emit(routingKey, {should: 'be in waitqueue', sent: Date.now()}, null, {ttl: 500});
+        await publisherClient.emit(routingKey, {s: 4, should: 'be in waitqueue', sent: Date.now()}, null, {ttl: 500});
+        await publisherClient.emit(routingKey, {s: 5, should: 'be in waitqueue', sent: Date.now()}, null, {ttl: 500});
 
         await waitOnBlock;
 
