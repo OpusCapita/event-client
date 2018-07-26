@@ -4,7 +4,6 @@ services:
         build: .
         depends_on:
             - registrator
-            - rabbit1
             - rabbit2
             - consul
         environment:
