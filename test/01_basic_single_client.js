@@ -33,6 +33,7 @@ describe('EventClient single instance tests', () => {
 
     afterEach(async () => {
         client && await client.dispose();
+        client = null;
     });
 
     it('Simple test (1 client)', async () =>
@@ -147,6 +148,7 @@ describe('EventClient single instance tests', () => {
     it('Pattern test (1 client)', async () =>
     {
         client = new EventClient({ logger : Logger.DummyLogger });
+
         const routingPattern = 'event-client.#';
         const routingKey = 'event-client.test';
 

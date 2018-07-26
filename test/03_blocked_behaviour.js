@@ -41,6 +41,10 @@ describe('EventClient: connection blocked behaviour', () =>
         try {
             await publisherClient.dispose();
             await subscriberClient.dispose();
+
+            await rabbitCmd.unblockRabbit(1);
+            await rabbitCmd.unblockRabbit(2);
+
         } catch (e) {
             /* handle error */
             console.error(e);
@@ -170,8 +174,46 @@ describe('EventClient: connection blocked behaviour', () =>
         assert.strictEqual(receivedCounter, 6);
     });
 
-    it('Should allow dispose on blocked connections.');
-    it('EventClient#init should not wait indefintly when client comes up with broker in blocking state.');
+    it('EventClient#init should not wait indefintly when client comes up with broker in blocking state.', async () => {
+        await rabbitCmd.blockRabbit(1);
+        await rabbitCmd.blockRabbit(2);
+
+        await sleep(1000);
+
+        let result = await publisherClient.init();
+
+        assert.strictEqual(result, true);
+    });
+
+    it('Should allow dispose on blocked connections.', async () => {
+        // await rabbitCmd.blockRabbit(1);
+        // await rabbitCmd.blockRabbit(2);
+
+        await sleep(1000);
+
+        let result;
+
+        result = await subscriberClient.subscribe('event-client.test.waitqueue', () => {
+            return true;
+        });
+
+        result = await subscriberClient.dispose();
+
+        assert.strictEqual(result, true);
+    });
+
+    it('Initialising EventClient on subscribe while connections are blocked should return truthy.', async () => {
+        await rabbitCmd.blockRabbit(1);
+        await rabbitCmd.blockRabbit(2);
+
+        await sleep(1000);
+
+        let result = await subscriberClient.subscribe('event-client.test.waitqueue', () => {
+            return true;
+        });
+
+        assert.strictEqual(result, true);
+    });
 
     after('Shutdown', async () =>
     {
