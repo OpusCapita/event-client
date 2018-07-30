@@ -67,7 +67,7 @@ describe('EventClient: connection blocked behaviour', () =>
 
         await publisherClient.init();
 
-        publisherClient.connection.events.emit('connection_blocked');
+        publisherClient.publisherConnection.events.emit('connection_blocked');
 
         for (let i of [1, 2, 3]) {
             await publisherClient.emit(routingKey, {count: i});
@@ -88,7 +88,7 @@ describe('EventClient: connection blocked behaviour', () =>
             return true;
         });
 
-        publisherClient.connection.events.emit('connection_blocked');
+        publisherClient.publisherConnection.events.emit('connection_blocked');
 
         await sleep(100);
 
@@ -97,7 +97,7 @@ describe('EventClient: connection blocked behaviour', () =>
             await publisherClient.emit(routingKey, {count: i});
         }
 
-        publisherClient.connection.events.emit('connection_unblocked');
+        publisherClient.publisherConnection.events.emit('connection_unblocked');
         // publisherClient.pubChannel.useWaitQueue = false;
         // await publisherClient.pubChannel.flushWaitQueue();
 
@@ -108,16 +108,15 @@ describe('EventClient: connection blocked behaviour', () =>
 
     });
 
-    it('Should change the connection state to BLOCKED on cluster warning', async () => {
+    it('Should change the publishing-connection`s state to BLOCKED on cluster warning', async () => {
         await publisherClient.init();
 
         await rabbitCmd.blockRabbit(1);
         await rabbitCmd.blockRabbit(2);
-        await sleep(500);
 
-        await publisherClient.emit('event-client.test', { pickle: 'rick'}, null, {ttl: 1000});
+        await publisherClient.emit('event-client.test', {pickle: 'rick'}, null, {ttl: 1000});
 
-        let state = publisherClient.connection.connectionState;
+        let state = publisherClient.publisherConnection.connectionState;
 
         try {
             await rabbitCmd.unblockRabbit(1);
@@ -126,7 +125,38 @@ describe('EventClient: connection blocked behaviour', () =>
             console.log(e);
         }
 
-        assert.strictEqual(state, publisherClient.connection.constructor.CS_BLOCKED);
+        assert.strictEqual(state, publisherClient.publisherConnection.constructor.CS_BLOCKED);
+    });
+
+    it('Should not change the consuming-connection`s state to BLOCKED on cluster warning', async () => {
+        await publisherClient.init();
+        await subscriberClient.init();
+
+        await rabbitCmd.blockRabbit(1);
+        await rabbitCmd.blockRabbit(2);
+
+        let receivedCounter = 0;
+        let routingKey = 'event-client.twoconnections';
+
+        let waitOnFlush = new Promise((resolve) => {
+            publisherClient.pubChannel.events.on('waitqueue_flushed', () => resolve(true));
+        });
+
+        await subscriberClient.subscribe(routingKey, () => {
+            receivedCounter++;
+        });
+
+        for (let i of [1, 2, 3]) {
+            await publisherClient.emit(routingKey, {pickle: 'rick', count: i}, null, {ttl: 1000});
+        }
+
+        await rabbitCmd.unblockRabbit(1);
+        await rabbitCmd.unblockRabbit(2);
+        await waitOnFlush;
+
+        await sleep(500);
+
+        assert.strictEqual(receivedCounter, 3);
     });
 
     it('Should not send the message that triggered the block state twice (eg. on flushWaitQueue)', async () => {
@@ -137,10 +167,10 @@ describe('EventClient: connection blocked behaviour', () =>
         await subscriberClient.init();
 
         let waitOnBlock = new Promise((resolve) => {
-            publisherClient.connection.events.on('connection_blocked', () => resolve(true));
+            publisherClient.publisherConnection.events.on('connection_blocked', () => resolve(true));
         });
         let waitOnUnblock = new Promise((resolve) => {
-            publisherClient.connection.events.on('connection_unblocked', () => resolve(true));
+            publisherClient.publisherConnection.events.on('connection_unblocked', () => resolve(true));
         });
         let waitOnFlush = new Promise((resolve) => {
             publisherClient.pubChannel.events.on('waitqueue_flushed', () => resolve(true));
