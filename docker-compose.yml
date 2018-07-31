@@ -45,6 +45,8 @@ services:
             SERVICE_5672_NAME: 'rabbitmq-amqp'
             RABBITMQ_ERLANG_COOKIE: $RABBITMQ_ERLANG_COOKIE
             KILL_PORT: 6666
+            CLUSTER_WITH: 'rabbit1'
+        # command: ["/wait-for", "rabbit1:5672", "--", "rabbitmq-server"]
         depends_on:
             - rabbit1
             - consul

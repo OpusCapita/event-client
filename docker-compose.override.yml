@@ -1,7 +1,7 @@
 version: '2'
 services:
   main:
-    command: 'npm run debug'
+    command: 'npm run test'
     ports:
         - 9228:9228
     expose:
