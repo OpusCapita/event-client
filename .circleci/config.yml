@@ -18,7 +18,6 @@ jobs:
           name: Testing
           command: |
             docker-compose down
-            docker system prune -f
             docker-compose pull
             docker-compose build --no-cache
             docker-compose -f docker-compose.yml -f docker-compose.ci.yml run main npm run test-raw
