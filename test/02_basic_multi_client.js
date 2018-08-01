@@ -1,15 +1,19 @@
+/* global after:true, before:true afterEach:true describe:true, it:true */
+/* eslint object-curly-spacing: 0 */
+/* eslint key-spacing: 0 */
+
 const assert = require('assert');
 const configService = require('@opuscapita/config');
 const Logger = require('ocbesbn-logger');
 const { EventClient } = require('../lib');
+const rabbitCmd = require('./helpers/rabbitmq');
 
 const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
 
 describe('EventClient multiple instances', () => {
 
     const consulOverride = { };
-    let allMqNodes,
-        publisherClient,
+    let publisherClient,
         subscriberClient,
         subscriberClient1,
         subscriberClient2;
@@ -27,6 +31,10 @@ describe('EventClient multiple instances', () => {
         consulOverride.username = username;
         consulOverride.password = password;
 
+        await rabbitCmd.awaitRabbitCluster(endpoint, username, password);
+
+        return true;
+
     });
 
     after('Shutdown', async () =>
@@ -35,22 +43,26 @@ describe('EventClient multiple instances', () => {
     });
 
     afterEach(async () => {
-            publisherClient && await publisherClient.dispose();
-            subscriberClient && await subscriberClient.dispose();
-            subscriberClient1 && await subscriberClient1.dispose();
-            subscriberClient2 && await subscriberClient2.dispose();
+        try {
+            publisherClient && await publisherClient.dispose(); publisherClient = null;
+            subscriberClient && await subscriberClient.dispose(); subscriberClient = null;
+            subscriberClient1 && await subscriberClient1.dispose(); subscriberClient1 = null;
+            subscriberClient2 && await subscriberClient2.dispose(); subscriberClient2 = null;
+        } catch (e) {
+            console.log(e);
+        }
     });
 
     it('Simple test (2 clients)', async () =>
     {
         subscriberClient = new EventClient({ logger : Logger.DummyLogger,  context : { nix : 1 } });
-        publisherClient = new EventClient({ logger : Logger.DummyLogger });
+        publisherClient  = new EventClient({ logger : Logger.DummyLogger });
 
-        publisherClient.contextify({ truth : 42 });
+        publisherClient.contextify({truth: 42});
 
         const routingKey = 'event-client.Test';
-        const input = { message: 'Simple_Test' };
-        const result =  { };
+        const input      = {message: 'Simple_Test'};
+        const result     = {};
 
         await subscriberClient.init();
 
@@ -61,15 +73,14 @@ describe('EventClient multiple instances', () => {
             result.payload = payload;
             result.context = context;
             result.key = key;
-        })
+        });
 
         await sleep(500);
 
         assert(await subscriberClient.hasSubscription(routingKey));
+
         await publisherClient.emit(routingKey, input);
         assert(await subscriberClient.hasSubscription(routingKey));
-
-        await sleep(500);
 
         assert(await subscriberClient.exchangeExists('event-client'), true);
         assert.equal(await subscriberClient.hasSubscription('invalid'), false);
@@ -91,13 +102,13 @@ describe('EventClient multiple instances', () => {
         const routingKey = 'event-client.ACK';
         const input = { message: 'Test-ACK-Value' };
 
-        await subscriberClient.subscribe(routingKey, async (payload, context, key) =>
+        await subscriberClient.subscribe(routingKey, (payload, context, key) =>
         {
             iteration++;
 
             assert.deepEqual(payload, input);
 
-            if(iteration == 1)
+            if(iteration === 1)
                 return false;
             else if(iteration == 2)
                 throw new Error();
@@ -144,8 +155,6 @@ describe('EventClient multiple instances', () => {
 
         assert.equal(iterator, 1);
         assert.deepEqual(output, input);
-
-        await sleep(1000);
     });
 
     it('Double subscription (2 clients)', async () =>

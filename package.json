@@ -9,10 +9,12 @@
   },
   "scripts": {
     "start": "npm run test-result",
+    "debug": "npm run clean ; npm run setup-consul ; npx nodemon --inspect=0.0.0.0:9228 --watch  lib/ --watch local/ local/debug.js",
     "setup-consul": "curl -X PUT -d ${RABBITMQ_USER} http://consul:8500/v1/kv/event-client/mq/user ; curl -X PUT -d ${RABBITMQ_PASS} http://consul:8500/v1/kv/event-client/mq/password",
     "clean": "npx rimraf coverage/* .nyc_output",
     "test": "npm run clean ; npm run setup-consul ; npx nyc mocha --timeout 120000 --recursive -R mocha-junit-reporter",
-    "test-raw": "npm run clean ; npm run setup-consul ; npx nyc mocha --timeout 120000 --recursive",
+    "test-raw": "npm run clean ; npm run setup-consul ; npx mocha --timeout 120000 --recursive",
+    "test:local": "npm run clean ; npm run setup-consul ; npx mocha --inspect=0.0.0.0:9228 --timeout 120000 --recursive --watch lib/ --watch test/",
     "test-coverage": "npm run clean ; npm run setup-consul ; npx nyc --reporter=lcov mocha --timeout 120000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
     "upload-coverage": "cat ./coverage/lcov.info | npx coveralls",
     "api-doc": "npx jsdoc2md --files ./lib/* > wiki/Home.md",
@@ -39,6 +41,7 @@
     "mocha": "^5.2.0",
     "mocha-junit-reporter": "^1.17.0",
     "nyc": "^11.8.0",
-    "superagent": "^3.8.3"
+    "superagent": "^3.8.3",
+    "typescript": "^2.9.2"
   }
 }

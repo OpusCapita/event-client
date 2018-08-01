@@ -43,3 +43,6 @@ routes/*
 test-results.xml
 
 data
+tags
+.local.vimrc
+.eslintrc*
