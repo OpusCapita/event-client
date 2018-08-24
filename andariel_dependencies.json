@@ -1,0 +1,6 @@
+{
+  "name": "event-client",
+  "serviceDependencies": {
+    "rabbitmq": "0.0.0"
+  }
+}
