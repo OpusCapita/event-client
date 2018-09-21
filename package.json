@@ -25,7 +25,8 @@
   "license": "MIT",
   "files": [
     "index.js",
-    "lib"
+    "lib",
+    "andariel_dependencies.json"
   ],
   "dependencies": {
     "@opuscapita/config": "^3.0.11",
