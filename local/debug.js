@@ -50,19 +50,28 @@ async function main() {
     });
 
     let cnt = 0;
+    let hasThrown = false;
     let interval = setInterval(async () => {
-        let result = await client.emit(routingKey1, {message: new Date()}, null, {ttl: 10000});
+        let result = null;
+        try {
+            // if (!hasThrown) await client.pubChannel.channel.checkQueue('benis' + Math.ceil(Math.random() * 1000));
+            result = await client.emit(routingKey1, {message: new Date()}, null, {ttl: 10000});
+        } catch (e) {
+            hasThrown = true;
+            console.error('Exception in main loop:');
+            console.error(e);
+        }
         rxTx.push(result);
         cnt++;
         console.log(`Emit result is: ${result}`);
         console.log(`RxTx size = ${rxTx.length}`);
 
-        // if (cnt >= 1) {
-        //     console.log('Shutting down');
-        //     clearInterval(interval);
+        if (cnt >= 100) {
+            console.log('Shutting down');
+            clearInterval(interval);
 
-        //     await client.dispose();
-        // }
+            await client.dispose();
+        }
     }, 10000);
 
     return true;
