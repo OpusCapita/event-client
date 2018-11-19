@@ -158,18 +158,18 @@ describe('EventClient single instance tests', () => {
     {
         client = new EventClient({ logger : Logger.DummyLogger });
 
-        const routingPattern = 'event-client.#';
-        const routingKey = 'event-client.test';
+        const routingPattern = 'event-client.pattern.#';
+        const routingKey = 'event-client.pattern.test';
 
         let iterator = 0;
         let output;
-        const input = { message: 'Test-pattern' }
+        const input = { message: 'Test-pattern' };
 
-        await client.subscribe(routingPattern, (payload, context, key) =>
+        await client.subscribe(routingPattern, (payload) =>
         {
             iterator++;
             output = payload;
-        })
+        });
 
         await client.emit(routingKey, input);
         await sleep(2000);

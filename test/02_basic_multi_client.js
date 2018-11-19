@@ -132,18 +132,18 @@ describe('EventClient multiple instances', () => {
         publisherClient = new EventClient({ logger : Logger.DummyLogger, new : 1 });
         subscriberClient = new EventClient({ logger : Logger.DummyLogger, new : 2 });
 
-        const routingPattern = 'event-client.#';
-        const routingKey = 'event-client.test';
+        const routingPattern = 'event-client.pattern-multi.#';
+        const routingKey = 'event-client.pattern-multi.test';
 
         let iterator = 0;
         let output;
-        const input = { message: 'Test-pattern' }
+        const input = { message: 'Test-pattern' };
 
-        await subscriberClient.subscribe(routingPattern, (payload, context, key) =>
+        await subscriberClient.subscribe(routingPattern, (payload) =>
         {
             iterator++;
             output = payload;
-        })
+        });
 
         await publisherClient.emit(routingKey, input);
         await sleep(2000);
