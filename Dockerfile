@@ -1,6 +1,7 @@
 FROM node:8-alpine
 MAINTAINER denic
 
+RUN apk update
 RUN apk add --upgrade --no-cache  \
     alpine-sdk \
     libc6-compat \
