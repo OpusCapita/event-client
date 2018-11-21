@@ -1,14 +1,16 @@
 version: '2'
 services:
   main:
-    command: 'npm run test'
+    command: 'npm run debug'
     ports:
         - 9228:9228
+    environment:
+        - CONSUMER_GROUP_ID=alpha
     expose:
         - 9228
     volumes:
         - ./coverage:/home/node/event-client/coverage
-        - ./lib:/home/node/event-client/lib
+        - ./kafka:/home/node/event-client/kafka
         - ./test:/home/node/event-client/test
-        - ./wiki:/home/node/event-client/wiki
         - ./local:/home/node/event-client/local
+        - ./wiki:/home/node/event-client/wiki
