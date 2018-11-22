@@ -14,10 +14,10 @@
     "clean": "npx rimraf coverage/* .nyc_output",
     "test": "npm run clean ; npm run setup-consul ; npx nyc mocha --timeout 120000 --recursive -R mocha-junit-reporter",
     "test-raw": "npm run clean ; npm run setup-consul ; npx mocha --timeout 120000 --recursive",
-    "test:watch": "npm run clean ; npm run setup-consul ; npx mocha --inspect=0.0.0.0:9228 --timeout 120000 --recursive --watch lib/ --watch test/",
+    "test:watch": "npm run clean ; npm run setup-consul ; npx mocha --inspect=0.0.0.0:9228 --timeout 120000 --recursive --watch ./kafka/**/*.js --watch test/",
     "test-coverage": "npm run clean ; npm run setup-consul ; npx nyc --reporter=lcov mocha --timeout 120000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
     "upload-coverage": "cat ./coverage/lcov.info | npx coveralls",
-    "api-doc": "npx jsdoc2md --files ./lib/* > wiki/Home.md",
+    "api-doc": "npx jsdoc2md --files ./rabbitmq/lib/* ./kafka/src/* > wiki/Home.md",
     "doc": "npm run api-doc",
     "prepublishOnly": "npm version patch -m 'Version set to %s. [skip ci]'"
   },
