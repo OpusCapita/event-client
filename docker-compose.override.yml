@@ -10,7 +10,7 @@ services:
         - 9228
     volumes:
         - ./coverage:/home/node/event-client/coverage
-        - ./kafka:/home/node/event-client/kafka
+        - ./src:/home/node/event-client/src
         - ./test:/home/node/event-client/test
         - ./local:/home/node/event-client/local
         - ./wiki:/home/node/event-client/wiki
