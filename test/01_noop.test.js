@@ -7,7 +7,7 @@ const configService = require('@opuscapita/config');
 const extend        = require('extend');
 const Logger        = require('ocbesbn-logger');
 
-const {EventClient} = require('../src');
+const {EventClient} = require('../src/');
 
 const consulOverride = {
     host:  'kafka1',
