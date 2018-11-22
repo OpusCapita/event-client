@@ -73,7 +73,6 @@ class EventClient
      * @async
      * @function checkHealth
      * @returns {Promise<object>}
-     * @throws
      */
     async checkHealth()
     {
@@ -172,7 +171,7 @@ class EventClient
      * @param {object} context - Optional context containing meta data for the receiver of an event.
      * @param {EmitOpts} opts - Additional options to be set for emmiting an event.
      * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to null if the subscription succeeded. Otherwise the promise gets rejected with an error.
-     * @throws
+     * @throws {Error}
      */
     async publish(topic, message, context = null, opts = {})
     {

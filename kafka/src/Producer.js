@@ -43,7 +43,6 @@ class Producer extends EventEmitter
      * @async
      * @function checkHealth
      * @returns {Promise}
-     * @throws
      */
     async checkHealth()
     {
@@ -79,7 +78,6 @@ class Producer extends EventEmitter
      * @async
      * @function dispose
      * @returns {boolean} success
-     * @throws
      */
     async dispose()
     {
@@ -102,6 +100,7 @@ class Producer extends EventEmitter
      * @param {object} context - Optional context containing meta data for the receiver of an event.
      * @param {EmitOpts} opts - Additional options to be set for emmiting an event.
      * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to null if the subscription succeeded. Otherwise the promise gets rejected with an error.
+     * @reject {Error}
      */
     async publish(topic, content, context = null)
     {
@@ -151,6 +150,7 @@ class Producer extends EventEmitter
      * @param {string} config.host - Kafka node to connect to. Uses internal service discovery to find other kafka nodes.
      * @param {string} config.port - Kafka port.
      * @returns {boolean} true if successful or throws
+     * @reject {Error}
      */
     async _connect(config)
     {

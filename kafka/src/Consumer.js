@@ -31,7 +31,7 @@ class Consumer extends EventEmitter
      * @async
      * @function checkHealth
      * @returns {Promise}
-     * @throws
+     * @throws {ConsumerError}
      */
     async checkHealth()
     {
@@ -68,7 +68,6 @@ class Consumer extends EventEmitter
      * @async
      * @function dispose
      * @returns {boolean} success
-     * @throws
      */
     async dispose()
     {
@@ -104,7 +103,7 @@ class Consumer extends EventEmitter
      *
      * @param {string} topic - Full name of a topic or a pattern.
      * @returns {boolean} Returns true if the *topic* is already subscribed; otherwise false.
-     * @throws
+     * @throws {Error}
      */
     hasSubscription(topic)
     {
@@ -125,7 +124,7 @@ class Consumer extends EventEmitter
      * @param {string} topic
      * @param {function} callback
      * @returns {boolean}
-     * @throws
+     * @throws {ConsumerError}
      */
     async subscribe(topic, callback = null)
     {
@@ -395,7 +394,7 @@ class Consumer extends EventEmitter
      * @param {object} message
      * @param {string} message.value - Stringified JSON of message structure
      * @returns {object} Struct containing message content and headers
-     * @throws
+     * @throws {ConsumerError}
      */
     _prepareIncomingMessage(message) {
         if (!message || !message.topic) {
