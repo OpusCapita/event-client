@@ -131,7 +131,7 @@ class AmqpConnection
             heartbeat: 15
         }, {
             clientProperties: {
-                product: 'EventClient',
+                product: 'AmqpClient',
                 version: version,
                 service: this.config.serviceName
             }

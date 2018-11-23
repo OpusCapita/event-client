@@ -1,4 +1,4 @@
-const RabbitClient = require('./clients/rabbitmq/');
+const AmqpClient   = require('./clients/rabbitmq/');
 const KafkaClient  = require('./clients/kafka/');
 
 const configService = require('@opuscapita/config');
@@ -17,8 +17,8 @@ class EventClient {
         this._config.serviceName      = configService.serviceName || this.config.serviceName;
         this._config.consumerGroupId  = config.consumerGroupId || this.config.serviceName;
 
-        this._kafkaClient  = new RabbitClient(this.config);
-        this._rabbitClient = new KafkaClient(this.config);
+        this._kafkaClient  = new AmqpClient(this.config);
+        this._amqpClient = new KafkaClient(this.config);
 
         ON_DEATH((signal, err) => {
             this.logger.info('EventClient#onDeath: Got signal: ' + signal, ' and error: ', err);
@@ -46,9 +46,9 @@ class EventClient {
         return this._kafkaClient;
     }
 
-    get rabbitClient()
+    get amqpClient()
     {
-        return this._rabbitClient;
+        return this._amqpClient;
     }
 
 
@@ -80,10 +80,10 @@ class EventClient {
     async init()
     {
         await this.kafkaClient.init(this.config);
-        await this.rabbitClient.init(this.config);
+        await this.amqpClient.init(this.config);
         return true;
 
-        // return Promise.all([this.kafkaClient.init(), this.rabbitClient.init()]);
+        // return Promise.all([this.kafkaClient.init(), this.amqpClient.init()]);
     }
 
     async publish()
@@ -110,7 +110,7 @@ class EventClient {
     {
         return Promise.all([
             this.kafkaClient.subscribe(topic, callback, opts),
-            this.rabbitClient.subscribe(topic, callback, opts)
+            this.amqpClient.subscribe(topic, callback, opts)
         ]);
     }
 

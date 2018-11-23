@@ -456,7 +456,7 @@ class AmqpChannel
                             this.unackedMsgs.set(msgKey, {...this.unackedMsgs.get(msgKey), state: AmqpChannel.MSG_NACKED});
                         }
 
-                        // TODO expose failed message through EventClient to the application?
+                        // TODO expose failed message through AmqpClient to the application?
 
                         reject(err);
                     } else {

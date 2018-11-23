@@ -98,7 +98,7 @@ class Consumer extends EventEmitter
 
     /**
      * Checks whenever the passed *topic* or pattern already has an active subscription inside the
-     * current instance of EventClient. The *topic* can either be a full name of a
+     * current instance of KafkaClient. The *topic* can either be a full name of a
      * channel or a pattern.
      *
      * @param {string} topic - Full name of a topic or a pattern.
@@ -345,8 +345,8 @@ class Consumer extends EventEmitter
      * @param {number} message.timestamp
      * @param {string} message.topic
      * @param {string} message.value - Message payload. Should contain JSON with metadata and payload
-     * @param {string} message.value.properties - Stringified JSON containing message headers maintained by EventClient
-     * @param {string} message.value.content    - Stringified JSON containing the actual payload of the message. Needs to be deserialized with the parser given in the config from EventClient#constructor.
+     * @param {string} message.value.properties - Stringified JSON containing message headers maintained by KafkaClient
+     * @param {string} message.value.content    - Stringified JSON containing the actual payload of the message. Needs to be deserialized with the parser given in the config from KafkaClient#constructor.
      */
     _onConsumerMessage(message)
     {
@@ -364,9 +364,8 @@ class Consumer extends EventEmitter
         {
             if (message.topic.match(new RegExp(t)))
             {
-                let cbResult;
                 try {
-                    cbResult = cb(payload, context, message.topic);  // TODO Check if topic has to be the third param, eg. (payload, context, topic/key)
+                    cb(payload, context, message.topic);  // TODO Check if topic has to be the third param, eg. (payload, context, topic/key)
                 } catch (e) {
                     this.logger.error('Consumer#_onConsumerMessage: Calling the registered callback for topic ', message.topic, ' failed with exception.', e);
                 }

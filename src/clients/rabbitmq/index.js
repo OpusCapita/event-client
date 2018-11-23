@@ -1,3 +1,3 @@
-const {EventClient} = require('./lib');
+const {RabbitClient} = require('./lib');
 
-module.exports = EventClient;
+module.exports = RabbitClient;

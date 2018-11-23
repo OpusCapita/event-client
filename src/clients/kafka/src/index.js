@@ -1,3 +1,3 @@
-const EventClient = require('./EventClient');
+const KafkaClient = require('./KafkaClient');
 
-module.exports = {EventClient};
+module.exports = {KafkaClient};

@@ -7,17 +7,17 @@ const AmqpConnection = require('./AmqpConnection');
 const AmqpChannel = require('./AmqpChannel');
 const EventError = require('./EventError');
 
-class EventClient
+class AmqpClient 
 {
     /**
      * Class for simplifying access to message queue servers implementing the Advanced Message Queuing Protocol (amqp). Each instance of this class is capable of receiving and emitting events.
      *
-     * @param {object} config - For a list of possible configuration values see [DefaultConfig]{@link EventClient.DefaultConfig}.
+     * @param {object} config - For a list of possible configuration values see [DefaultConfig]{@link AmqpClient.DefaultConfig}.
      * @constructor
      */
     constructor(config)
     {
-        this.config = extend(true, {}, EventClient.DefaultConfig, config);
+        this.config = extend(true, {}, AmqpClient.DefaultConfig, config);
         this.serviceName = configService.serviceName;
         this.exchangeName = this.config.exchangeName || this.serviceName;
         this.queueName = this.config.queueName;
@@ -117,7 +117,7 @@ class EventClient
      * The passed *message* can consis of all data types that can be serialized into a string.
      * The optional *context* paraemter adds additional meta data to the event. It has to be an event
      * and will extend a possibly existing global context defined by the config object passed
-     * to the constructor (see {@link EventClient.DefaultConfig}).
+     * to the constructor (see {@link AmqpClient.DefaultConfig}).
      *
      * @param {string} topic - Full name of a topic.
      * @param {object} message - Payload to be sent to a receiver.
@@ -166,14 +166,14 @@ class EventClient
             try {
                 result = await this.pubChannel.publish(messageToPublish);
             } catch (e) {
-                logger.error(`EventClient: Failed to publish message to ${exchangeName}/${topic}`, e);
+                logger.error(`AmqpClient: Failed to publish message to ${exchangeName}/${topic}`, e);
             }
 
             if (result) {
                 return result;
             }
             else {
-                logger.error(`EventClient: Failed to publish message to ${exchangeName}/${topic}`, messageToPublish);
+                logger.error(`AmqpClient: Failed to publish message to ${exchangeName}/${topic}`, messageToPublish);
                 throw new EventError('Unkown error: Event could not be published.', 500);
             }
         })());
@@ -221,7 +221,7 @@ class EventClient
                         try {
                             payload = this.config.parser(message.content);
                         } catch (parserException) {
-                            let msg = 'EventClient#subscribe#localCallback: Failed to parse incoming message';
+                            let msg = 'AmqpClient#subscribe#localCallback: Failed to parse incoming message';
                             this.logger.error(msg, Buffer.from(JSON.stringify(message)).toString('base64'));
                             throw new EventError(msg, 500);
                         }
@@ -458,7 +458,7 @@ class EventClient
     /**
      * Allows adding a default context to every event emitted.
      * You may also want to construct an instance of this class by passing the context
-     * parameter to the constructor. For further information have a look at {@link EventClient.DefaultConfig}.
+     * parameter to the constructor. For further information have a look at {@link AmqpClient.DefaultConfig}.
      */
     contextify(context)
     {
@@ -467,7 +467,7 @@ class EventClient
 
     /**
      * Checks whenever the passed *topic* or pattern already has an active subscription inside the
-     * current instance of EventClient. The *topic* can either be a full name of a
+     * current instance of AmqpClient. The *topic* can either be a full name of a
      * channel or a pattern.
      *
      * @param {string} topic - Full name of a topic or a pattern.
@@ -480,7 +480,7 @@ class EventClient
     }
 
     /**
-     * Depending on the configuration of the EventClient object, this method returns a configured queue name or a constructed name for the passed topic.
+     * Depending on the configuration of the AmqpClient object, this method returns a configured queue name or a constructed name for the passed topic.
      *
      * @param {string} topic - Full name of a topic or a pattern.
      * @returns {string} Name of a queue.
@@ -505,7 +505,7 @@ class EventClient
             this.onPropertyChanged && configService.removeListener('propertyChanged', this.onPropertyChanged);
 
             let channelClosePromises = this.channels.map((c) => {
-                return c.close().catch((e) => this.logger.error(`EventClient#dispose: Failed to close channel ${c.ch}`, e));
+                return c.close().catch((e) => this.logger.error(`AmqpClient#dispose: Failed to close channel ${c.ch}`, e));
             });
             await Promise.all(channelClosePromises);
 
@@ -571,7 +571,7 @@ class EventClient
                     try {
                         await this._doReconnect();
                     } catch (e) {
-                        this.logger.error('EventClient#onEndpointChanged: Failed to call _doReconnect with exception. ', e);
+                        this.logger.error('AmqpClient#onEndpointChanged: Failed to call _doReconnect with exception. ', e);
                     }
                 }
             };
@@ -584,7 +584,7 @@ class EventClient
                     try {
                         await this._doReconnect();
                     } catch (e) {
-                        this.logger.error('EventClient#onPropertyChanged: Failed to call _doReconnect with exception. ', e);
+                        this.logger.error('AmqpClient#onPropertyChanged: Failed to call _doReconnect with exception. ', e);
                     }
                 }
             };
@@ -647,8 +647,6 @@ class EventClient
 
 }
 
-module.exports = EventClient;
-
 /**
 * Static object representing a default configuration set.
 *
@@ -671,7 +669,7 @@ module.exports = EventClient;
 * @property {string} consulOverride.password - User password for message queue authentication.
 * @property {object} context - Optional context object to automatically extend emitted messages.
 */
-EventClient.DefaultConfig = {
+AmqpClient.DefaultConfig = {
     serializer: JSON.stringify,
     parser: JSON.parse,
     serializerContentType: 'application/json',
@@ -694,3 +692,5 @@ EventClient.DefaultConfig = {
     context: {
     }
 };
+
+module.exports = AmqpClient;

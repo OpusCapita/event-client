@@ -1,6 +1,6 @@
 const AmqpChannel = require('./AmqpChannel');
 const AmqpConnection = require('./AmqpConnection');
-const EventClient = require('./EventClient');
+const AmqpClient = require('./AmqpClient');
 const EventError = require('./EventError');
 
-module.exports = { AmqpChannel, AmqpConnection, EventClient, EventError };
+module.exports = {AmqpChannel, AmqpConnection, AmqpClient, EventError};

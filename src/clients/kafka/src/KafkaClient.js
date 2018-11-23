@@ -11,16 +11,16 @@ const Producer = require('./Producer');
  * Class for simplifying access to kafka brokers. Each instance of this class
  * is capable of receiving and emitting events.
  */
-class EventClient
+class KafkaClient
 {
     /**
-     * @param {object} [config={}] - For a list of possible configuration values see [DefaultConfig]{@link EventClient.DefaultConfig}.
+     * @param {object} [config={}] - For a list of possible configuration values see [DefaultConfig]{@link KafkaClient.DefaultConfig}.
      */
     constructor(config = {})
     {
         this._logger = config.logger;
 
-        this.config                  = extend(true, {}, EventClient.DefaultConfig, config);
+        this.config                  = extend(true, {}, KafkaClient.DefaultConfig, config);
         this.config.serviceName      = configService.serviceName || this.config.serviceName;
         this.config.consumerGroupId  = config.consumerGroupId || this.config.serviceName;
 
@@ -30,7 +30,7 @@ class EventClient
         this._producer = null;
 
         ON_DEATH((signal, err) => {
-            this.logger.info('EventClient#onDeath: Got signal: ' + signal, ' and error: ', err);
+            this.logger.info('KafkaClient#onDeath: Got signal: ' + signal, ' and error: ', err);
             this.dispose();
         });
     }
@@ -97,14 +97,14 @@ class EventClient
         try {
             result.consumer = this.consumer && await this.consumer.checkHealth();
         } catch (e) {
-            this.logger && this.logger.error('EventClient#checkHealth: Checking consumer health throwed an exception. ', e);
+            this.logger && this.logger.error('KafkaClient#checkHealth: Checking consumer health throwed an exception. ', e);
             result.consumer = null;
         }
 
         try {
             result.producer = this.producer && await this.producer.checkHealth();
         } catch (e) {
-            this.logger && this.logger.error('EventClient#checkHealth: Checking producers health throwed an exception. ', e);
+            this.logger && this.logger.error('KafkaClient#checkHealth: Checking producers health throwed an exception. ', e);
             result.producer = null;
         }
 
@@ -114,7 +114,7 @@ class EventClient
     /**
      * Allows adding a default context to every event emitted.
      * You may also want to construct an instance of this class by passing the context
-     * parameter to the constructor. For further information have a look at {@link EventClient.DefaultConfig}.
+     * parameter to the constructor. For further information have a look at {@link KafkaClient.DefaultConfig}.
      *
      * @param {object} [context={}] - Overrides the current context
      */
@@ -145,7 +145,7 @@ class EventClient
 
     /**
      * Checks whenever the passed *topic* or pattern already has an active subscription inside the
-     * current instance of EventClient. The *topic* can either be a full name of a
+     * current instance of KafkaClient. The *topic* can either be a full name of a
      * channel or a pattern.
      *
      * @param {string} topic - Full name of a topic or a pattern.
@@ -179,7 +179,7 @@ class EventClient
      * The passed *message* can consis of all data types that can be serialized into a string.
      * The optional *context* paraemter adds additional meta data to the event. It has to be an event
      * and will extend a possibly existing global context defined by the config object passed
-     * to the constructor (see {@link EventClient.DefaultConfig}).
+     * to the constructor (see {@link KafkaClient.DefaultConfig}).
      *
      * @param {string} topic - Full name of a topic.
      * @param {object} message - Payload to be sent to a receiver.
@@ -222,7 +222,7 @@ class EventClient
     unsubscribe(topic)
     {
         if (!this._consumer) {
-            this.logger.error('EventClient#unsubscribe: Trying to unsubscribe but consumer was not initialized.');
+            this.logger.error('KafkaClient#unsubscribe: Trying to unsubscribe but consumer was not initialized.');
             return false;
         }
 
@@ -300,12 +300,10 @@ class EventClient
     {
         this._consumer = new Consumer(this.config);
 
-        debugger;
-
         let connectionConfig = await this._getMqConfig();
         const connectResult = await this._consumer.connect(connectionConfig);
 
-        this.logger && this.logger.info('EventClient#_initConsumer: Consumer connection setup returned: ', connectResult);
+        this.logger && this.logger.info('KafkaClient#_initConsumer: Consumer connection setup returned: ', connectResult);
 
         return connectResult;
     }
@@ -329,8 +327,6 @@ class EventClient
 
 }
 
-module.exports = EventClient;
-
 /**
 * Static object representing a default configuration set.
 *
@@ -347,7 +343,7 @@ module.exports = EventClient;
 * @property {string} consulOverride.host - Hostname of a message queue server.
 * @property {object} context - Optional context object to automatically extend emitted messages.
 */
-EventClient.DefaultConfig = {
+KafkaClient.DefaultConfig = {
     serializer: JSON.stringify,
     parser: JSON.parse,
     serializerContentType: 'application/json',
@@ -365,3 +361,5 @@ EventClient.DefaultConfig = {
     context: {
     }
 };
+
+module.exports = KafkaClient;
