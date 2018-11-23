@@ -119,14 +119,14 @@ class KafkaClient
      *
      * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to true or rejecting with an error.
      */
-    dispose()
+    async dispose()
     {
         let ok = true;
 
         this.logger && this.logger.info('Eventclient#dispose: Disposing ...');
 
-        if (this._consumer) { ok = this._consumer.dispose() && !!ok; }
-        if (this._producer) { ok = this._producer.dispose() && !!ok; }
+        if (this._consumer) { ok = await this._consumer.dispose() && !!ok; }
+        if (this._producer) { ok = await this._producer.dispose() && !!ok; }
 
         return !!ok;
     }

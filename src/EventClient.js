@@ -1,5 +1,6 @@
-const AmqpClient   = require('./clients/amqp/');
-const KafkaClient  = require('./clients/kafka/');
+const AmqpClient     = require('./clients/amqp/');
+const KafkaClient    = require('./clients/kafka/');
+const {NotImplError} = require('./err/');
 
 const configService = require('@opuscapita/config');
 const Logger        = require('ocbesbn-logger');
@@ -55,8 +56,10 @@ class EventClient {
 
     async dispose()
     {
-        this.logger.error(this.klassName, '#dispose: NOT IMPLEMENTED!');
-        return false;
+        return Promise.all([
+            this.kafkaClient.dispose(),
+            this.amqpClient.dispose()
+        ]);
     }
 
     /**
@@ -93,7 +96,7 @@ class EventClient {
 
     async publish()
     {
-        return true;
+        throw new NotImplError(`${this.klassName}#dispose: Not implemented.`, 'ENOTIMPL');
     }
 
     /**
