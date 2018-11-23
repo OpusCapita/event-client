@@ -63,5 +63,26 @@ describe('EventClient basic setup test.', () => {
             assert.equal(client.amqpClient.config.consul.mqServiceName, 'rabbitmq-amqp');
         });
     });
+
+    describe('#contextify', () => {
+        let client;
+
+        before(() => client = eventClientFactory());
+
+        after(async () => {
+            client && await client.dispose();
+            client = null;
+        });
+
+        it.only('Applies the given context to all instances.', () => {
+            const ctx = {is: 'set'};
+
+            client.contextify(ctx);
+
+            assert.deepEqual(client.kafkaClient.config.context, ctx);
+            assert.deepEqual(client.amqpClient.config.context, ctx);
+        });
+        
+    });
 });
 

@@ -1,3 +1,3 @@
-const { EventClient } = require('./src');
+const {EventClient} = require('./src');
 
 module.exports = EventClient;

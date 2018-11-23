@@ -111,7 +111,9 @@ class KafkaClient
     {
         this.config.context = context;
 
-        if (this._producer) { this._producer.context = context; };
+        if (this.producer) {
+            this.producer.context = context;
+        };
     }
 
     /**

@@ -8,10 +8,26 @@ const Logger        = require('ocbesbn-logger');
 const extend   = require('extend');
 const ON_DEATH = require('death'); // This is intentionally ugly
 
+/**
+ * @todo Implement config to switch publishing to kafka (defaults to rabbit)
+ *
+ * @todo Methods form 2x EventClient:
+ *   - getMessage: Not supported by Kafka -> checked: Used by archive, blob
+ *   - ackMessage: Not supported by Kafka -> checked: Used by archive, blob
+ *   - nackMessage: Not supported by Kafka -> checked: Used by archive, blob
+ *   - exchangeExists: Exchanges do not exist in Kafka, check if this is used public interface -> Checked: Only used internally
+ *   - queueExists: Kafka does not care, implement for Rabbit, check if this is used public interface -> Checked: Used by web-init, blob
+ *   - deleteQueue: Kafka does not care, implement for Rabbit, check if this is used public interface -> Checked: Only used internally
+ *   - unsubscribe
+ *   - hasSubscription: check if this is used on the public interface -> Checked: Only used internally
+ *   - getQueueName: Check if this is used public -> Checked: Only used internally
+ */
 class EventClient {
 
     constructor(config = {})
     {
+        const self = this;
+
         this._logger = config.logger || new Logger();
 
         this._config                  = extend(true, {}, EventClient.DefaultConfig, config);
@@ -25,7 +41,19 @@ class EventClient {
             this.logger.info(this.klassName, '#onDeath: Got signal: ' + signal, ' and error: ', err);
         });
 
-        return true;
+        /**
+         * Return a proxified version of this to keep track of
+         * property access to detect missing implementations.
+         */
+        return new Proxy(self, {
+            get(target, key) {
+                if (!Reflect.has(self, key)) {
+                    self.logger.warn(self.klassName, `: Getter for undefined property ${key} called.`);
+                } else {
+                    return target[key];
+                }
+            }
+        });
     }
 
     /** *** PUBLIC *** */
@@ -35,6 +63,7 @@ class EventClient {
         if (!this._logger) { this._logger = new Logger(); }
         return this._logger;
     }
+
     get amqpClient()  { return this._amqpClient; }
     get config()      { return this._config; }
     get kafkaClient() { return this._kafkaClient; }
@@ -127,4 +156,3 @@ class EventClient {
 }
 
 module.exports = EventClient;
-
