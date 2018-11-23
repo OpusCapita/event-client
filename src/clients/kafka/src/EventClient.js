@@ -1,5 +1,5 @@
 const ON_DEATH = require('death'); // This is intentionally ugly
-const extend = require('extend');
+const extend   = require('extend');
 
 const configService = require('@opuscapita/config');
 const Logger = require('ocbesbn-logger');
@@ -7,16 +7,18 @@ const Logger = require('ocbesbn-logger');
 const Consumer = require('./Consumer');
 const Producer = require('./Producer');
 
+/**
+ * Class for simplifying access to kafka brokers. Each instance of this class
+ * is capable of receiving and emitting events.
+ */
 class EventClient
 {
     /**
-     * Class for simplifying access to message queue servers implementing the Advanced Message Queuing Protocol (amqp). Each instance of this class is capable of receiving and emitting events.
-     *
      * @param {object} [config={}] - For a list of possible configuration values see [DefaultConfig]{@link EventClient.DefaultConfig}.
      */
     constructor(config = {})
     {
-        this.logger = config.logger || new Logger();
+        this._logger = config.logger;
 
         this.config                  = extend(true, {}, EventClient.DefaultConfig, config);
         this.config.serviceName      = configService.serviceName || this.config.serviceName;
@@ -41,6 +43,17 @@ class EventClient
 
     get producer() {
         return this._producer;
+    }
+
+    get klassName() {
+        return this.constructor.name;
+    }
+
+    get logger()
+    {
+        if (!this._logger) { this._logger = new Logger(); }
+
+        return this._logger;
     }
 
     /** *** PUBLIC *** */
@@ -151,6 +164,8 @@ class EventClient
      */
     async init()
     {
+        this.logger.info(this.klassName, '#init: Initialisation of Kafka event-client instance called.');
+
         await this._initConsumer();
         await this._initProducer();
 
@@ -218,6 +233,8 @@ class EventClient
 
     async _doReconnect()
     {
+        this.logger.error(this.klassName, '#_doReconnect: NOT IMPLEMENTED!');
+        return false;
     }
 
     /**
@@ -230,14 +247,14 @@ class EventClient
      */
     async _getMqConfig()
     {
-        const isConsulOverride = this.config.consulOverride && this.config.consulOverride.host && true;
+        const isConsulOverride = this.config.consulOverride && this.config.consulOverride.kafkaHost && true;
 
         if (isConsulOverride) {
             const config = this.config.consulOverride;
 
             return {
-                host: config.host,
-                port: config.port
+                host: config.kafkaHost,
+                port: config.kafkaPort
             };
         }
         else {
@@ -257,7 +274,7 @@ class EventClient
 
             this.onPropertyChanged = async (key) => {
                 if (key === config.mqUserKey || key === config.mqPasswordKey) {
-                    this.logger.info(`Got on onPropertyChanged event for key ${key}.`);
+                    this.logger.info(`Got onPropertyChanged event for key ${key}.`);
                     await this._doReconnect();
                 }
             };
@@ -282,6 +299,8 @@ class EventClient
     async _initConsumer()
     {
         this._consumer = new Consumer(this.config);
+
+        debugger;
 
         let connectionConfig = await this._getMqConfig();
         const connectResult = await this._consumer.connect(connectionConfig);

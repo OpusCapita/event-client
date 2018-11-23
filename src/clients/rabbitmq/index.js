@@ -1,3 +1,3 @@
-const { EventClient } = require('./lib');
+const {EventClient} = require('./lib');
 
 module.exports = EventClient;

@@ -19,23 +19,23 @@ function main() {
             consumerGroupId: process.env.CONSUMER_GROUP_ID || 'event-client',
             logger: new Logger(),
             consulOverride: {
-                host: 'kafka3',
-                port: 9094
+                kafkaHost: 'kafka3',
+                kafkaPort: 9094
                 // hosts: 'kafka1:9092,kafka2:9093,kafka3:9094'
             }
         };
 
-        // const cs1 = new EventClient(config);
+        const cs1 = new EventClient(config);
         // const cs2 = new EventClient(extend(true, config, {consumerGroupId: 'beta'}));
 
-        // // await cs1.init();
+        await cs1.init();
         // // await cs2.init();
 
-        // global.ec1 = cs1;
+        global.ec1 = cs1;
 
-        // await cs1.subscribe('^pattern.*.com', (message, headers) => {
-        //     console.log('CS1: Received message: ', message, '-', headers);
-        // });
+        await cs1.subscribe('^pattern.*.com', (message, headers) => {
+            console.log('CS1: Received message: ', message, '-', headers);
+        });
 
         // await cs2.subscribe('^pattern.*', (message, headers) => {
         //     console.log('CS2: Received message: ', message, '-', headers);
@@ -48,7 +48,7 @@ function main() {
         let cnt = 0;
         setInterval(() => {
             console.log('Publishing #', cnt);
-            // cs2.publish('pattern.oc.com', `${Date.now()} - ${cnt++}`, {'custom': 'context'});
+            cs1.publish('pattern.oc.com', `${Date.now()} - ${cnt++}`, {'custom': 'context'});
         }, 5000);
 
         // setInterval(async () => {
