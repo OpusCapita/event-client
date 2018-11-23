@@ -1,4 +1,4 @@
-const AmqpClient   = require('./clients/rabbitmq/');
+const AmqpClient   = require('./clients/amqp/');
 const KafkaClient  = require('./clients/kafka/');
 
 const configService = require('@opuscapita/config');
