@@ -74,7 +74,7 @@ describe('EventClient basic setup test.', () => {
             client = null;
         });
 
-        it.only('Applies the given context to all instances.', () => {
+        it('Applies the given context to all instances.', () => {
             const ctx = {is: 'set'};
 
             client.contextify(ctx);
