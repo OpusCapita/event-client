@@ -4,9 +4,9 @@
 
 const assert = require('assert');
 const extend = require('extend');
+const retry  = require('bluebird-retry');
 
 const Promise = require('bluebird');
-const retry = require('bluebird-retry');
 
 const configService = require('@opuscapita/config');
 const Logger = require('ocbesbn-logger');

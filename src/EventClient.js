@@ -17,11 +17,11 @@ class EventClient {
         this._config.serviceName      = configService.serviceName || this.config.serviceName;
         this._config.consumerGroupId  = config.consumerGroupId || this.config.serviceName;
 
-        this._kafkaClient  = new AmqpClient(this.config);
-        this._amqpClient = new KafkaClient(this.config);
+        this._amqpClient  = new AmqpClient(this.config);
+        this._kafkaClient = new KafkaClient(this.config);
 
         ON_DEATH((signal, err) => {
-            this.logger.info('EventClient#onDeath: Got signal: ' + signal, ' and error: ', err);
+            this.logger.info(this.klassName, '#onDeath: Got signal: ' + signal, ' and error: ', err);
         });
 
         return true;
@@ -29,31 +29,34 @@ class EventClient {
 
     /** *** PUBLIC *** */
 
-    get config()
-    {
-        return this._config;
-    }
-
     get logger()
     {
         if (!this._logger) { this._logger = new Logger(); }
-
         return this._logger;
     }
+    get amqpClient()  { return this._amqpClient; }
+    get config()      { return this._config; }
+    get kafkaClient() { return this._kafkaClient; }
+    get klassName()   { return this.constructor.name || 'EventClient'; }
 
-    get kafkaClient()
+    /**
+     * @public
+     * @function contextify
+     * @param {object} [context={}] - Overrides the current context
+     * @return {boolean}
+     */
+    contextify(...args)
     {
-        return this._kafkaClient;
-    }
+        this.kafkaClient.contextify(...args);
+        this.amqpClient.contextify(...args);
 
-    get amqpClient()
-    {
-        return this._amqpClient;
+        return true;
     }
-
 
     async dispose()
     {
+        this.logger.error(this.klassName, '#dispose: NOT IMPLEMENTED!');
+        return false;
     }
 
     /**
@@ -74,6 +77,7 @@ class EventClient {
      */
     async emit(...args)
     {
+        this.logger.warn(this.klassName, '#emit: Deprecation warning. Using old interface to publish messages. Use publish().');
         return this.publish(...args);
     }
 
@@ -81,6 +85,7 @@ class EventClient {
     {
         await this.kafkaClient.init(this.config);
         await this.amqpClient.init(this.config);
+
         return true;
 
         // return Promise.all([this.kafkaClient.init(), this.amqpClient.init()]);

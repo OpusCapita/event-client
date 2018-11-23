@@ -37,27 +37,16 @@ class KafkaClient
 
     /** *** GETTER *** */
 
-    get consumer() {
-        return this._consumer;
-    }
+    get consumer()  { return this._consumer; }
+    get producer()  { return this._producer; }
+    get klassName() { return this.constructor.name || 'KafkaClient'; }
 
-    get producer() {
-        return this._producer;
-    }
-
-    get klassName() {
-        return this.constructor.name;
-    }
-
-    get logger()
-    {
+    get logger() {
         if (!this._logger) { this._logger = new Logger(); }
-
         return this._logger;
     }
 
     /** *** PUBLIC *** */
-
 
     /**
      * Returns the health check results from the consumer and producer. Each of this

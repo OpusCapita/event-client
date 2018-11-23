@@ -40,13 +40,15 @@ class AmqpClient
      * @function
      * @returns {Logger}
      */
-    get logger() {
+    get logger()
+    {
         if (!this._logger) {
             this._logger = new Logger();
         }
 
         return this._logger;
     }
+    get klassName() { return this.constructor.name || 'KafkaClient'; }
 
     /**
      * Makes some basic initializations like exchange creation as they are automatically done by emitting the first event.

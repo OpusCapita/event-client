@@ -10,8 +10,8 @@ const Logger        = require('ocbesbn-logger');
 const {EventClient} = require('../src/');
 
 const consulOverride = {
-    host:  'kafka1',
-    port: 9092
+    kafkaHost: 'kafka1',
+    kafkaPort: 9092
 };
 
 const eventClientFactory = (config) => {
@@ -23,7 +23,7 @@ const eventClientFactory = (config) => {
     }, config));
 };
 
-describe('EventClient single instance tests', () => {
+describe('EventClient basic setup test.', () => {
     before(async () =>
     {
         return await configService.init({logger : Logger.DummyLogger});
@@ -37,7 +37,7 @@ describe('EventClient single instance tests', () => {
     describe('#constructor', () => {
         let client;
 
-        before(() => client = eventClientFactory({consumerGroupId:null}));
+        before(() => client = eventClientFactory());
 
         after(async () => {
             client && await client.dispose();
@@ -46,6 +46,21 @@ describe('EventClient single instance tests', () => {
 
         it('Creates a new instance', () => {
             assert(client !== null);
+            assert.equal(client.kafkaClient.klassName, 'KafkaClient');
+            assert.equal(client.amqpClient.klassName, 'AmqpClient');
+        });
+
+        it('Should setup the service name via configService', () => {
+            assert.equal(client.config.serviceName, 'event-client');
+        });
+
+        it('Should set the consumer group to the service name.', () => {
+            assert.equal(client.config.consumerGroupId, 'test');
+        });
+
+        it('Should set the mqServiceName depending on the client implementation.', () => {
+            assert.equal(client.kafkaClient.config.consul.mqServiceName, 'kafka');
+            assert.equal(client.amqpClient.config.consul.mqServiceName, 'rabbitmq-amqp');
         });
     });
 });
