@@ -17,7 +17,7 @@
     "test:watch": "npx nodemon --exec 'npm run test:raw'",
     "test-coverage": "npm run clean ; npm run setup-consul ; npx nyc --reporter=lcov mocha --timeout 120000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
     "upload-coverage": "cat ./coverage/lcov.info | npx coveralls",
-    "api-doc": "npx jsdoc2md --files ./src/clients/rabbitmq/lib/* ./src/clients/kafka/* > wiki/Home.md",
+    "api-doc": "npx jsdoc2md --files ./src/clients/amqp/lib/* ./src/clients/kafka/* > wiki/Home.md",
     "doc": "npm run api-doc",
     "prepublishOnly": "npm version patch -m 'Version set to %s. [skip ci]'"
   },
