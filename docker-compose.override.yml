@@ -3,11 +3,9 @@ services:
   main:
     command: 'npm run debug'
     ports:
-        - 9230:9230
+        - "9230:9230"
     environment:
         - CONSUMER_GROUP_ID=alpha
-    expose:
-        - 9230
     volumes:
         - ./package.json:/home/node/event-client/package.json
         - ./coverage:/home/node/event-client/coverage
