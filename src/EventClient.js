@@ -12,13 +12,13 @@ const ON_DEATH = require('death'); // This is intentionally ugly
  * @todo Implement config to switch publishing to kafka (defaults to rabbit)
  *
  * @todo Methods form 2x EventClient:
+ *   - unsubscribe
  *   - getMessage: Not supported by Kafka -> checked: Used by archive, blob
  *   - ackMessage: Not supported by Kafka -> checked: Used by archive, blob
  *   - nackMessage: Not supported by Kafka -> checked: Used by archive, blob
- *   - exchangeExists: Exchanges do not exist in Kafka, check if this is used public interface -> Checked: Only used internally
  *   - queueExists: Kafka does not care, implement for Rabbit, check if this is used public interface -> Checked: Used by web-init, blob
  *   - deleteQueue: Kafka does not care, implement for Rabbit, check if this is used public interface -> Checked: Only used internally
- *   - unsubscribe
+ *   - exchangeExists: Exchanges do not exist in Kafka, check if this is used public interface -> Checked: Only used internally
  *   - hasSubscription: check if this is used on the public interface -> Checked: Only used internally
  *   - getQueueName: Check if this is used public -> Checked: Only used internally
  */
@@ -132,10 +132,6 @@ class EventClient {
      * This method allows you to subscribe to one or more events. An event can either be an absolute name of a
      * topic to subscribe (e.g. my-service.status) or a pattern (e.g. my-servervice.#).
      *
-     * TODO rewrite RabbitMQ wildcard subscriptions to Kafka RegEx
-     * TODO First two elements of topic define the kafka topic, eg:
-     *         topic: supplier.bank-account.created -> kafka topic: supplier.bank-account
-     *
      * @async
      * @function subscribe
      * @param {string} topic - Full name of a topic or a pattern.
@@ -146,12 +142,32 @@ class EventClient {
     async subscribe(topic, callback = null, opts = {})
     {
         return Promise.all([
-            this.kafkaClient.subscribe(topic, callback, opts),
+            this._subscribeKafka(topic, callback, opts),
             this.amqpClient.subscribe(topic, callback, opts)
         ]);
     }
 
     /** *** PRIVATE *** */
+
+    /**
+     * Modify event-client v2x subscriptions to confirm to Kafka conventions.
+     *
+     * @todo rewrite RabbitMQ wildcard subscriptions to Kafka RegEx
+     * @todo First two elements of topic define the kafka topic, eg:
+     *         topic: supplier.bank-account.created -> kafka topic: supplier.bank-account
+     *
+     * @async
+     * @function _subscribeKafka
+     * @param {string} topic - Full name of a topic or a pattern.
+     * @param {function} callback - Optional function to be called when a message for a topic or a pattern arrives.
+     * @param {SubscribeOpts} opts - Additional options to set for the subscription.
+     * @returns {Promise}
+     * @fulfil {null}
+     * @reject {Error}
+     */
+    async _subscribeKafka(topic, callback = null, opts = {}) {
+        return this.kafkaClient.subscribe(topic, callback, opts);
+    }
 
 }
 
