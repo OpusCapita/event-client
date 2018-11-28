@@ -227,6 +227,7 @@ describe('EventClient single instance tests', () => {
             });
 
         });
+
     });
 
 
