@@ -21,7 +21,7 @@ class KafkaClient
         this._logger = config.logger;
 
         this.config                  = extend(true, {}, KafkaClient.DefaultConfig, config);
-        this.config.serviceName      = configService.serviceName || this.config.serviceName;
+        this.config.serviceName      = this.config.serviceName || configService.serviceName;
         this.config.consumerGroupId  = config.consumerGroupId || this.config.serviceName;
 
         this.connectionConfig = null;

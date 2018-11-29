@@ -9,11 +9,11 @@ const retry  = require('bluebird-retry');
 const Promise = require('bluebird');
 
 const configService = require('@opuscapita/config');
-const Logger = require('ocbesbn-logger');
-const {EventClient} = require('../src');
-const {ConsumerError} = require('../src/err');
+const Logger        = require('ocbesbn-logger');
 
-const subscribedTopics = require('../src/TopicSubscription');
+const EventClient      = require('../../../src/clients/kafka/');
+const {ConsumerError}  = require('../../../src/clients/kafka/err/');
+const subscribedTopics = require('../../../src/clients/kafka/TopicSubscription');
 
 const consulOverride = {
     host:  'kafka1',

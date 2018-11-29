@@ -6,10 +6,11 @@ const assert = require('assert');
 const extend = require('extend');
 
 const configService = require('@opuscapita/config');
-const Logger = require('ocbesbn-logger');
-const {EventClient} = require('../src');
-const {ConsumerError} = require('../src/err');
-const subscribedTopics = require('../src/TopicSubscription');
+const Logger        = require('ocbesbn-logger');
+
+const EventClient      = require('../../../src/clients/kafka/');
+const {ConsumerError}  = require('../../../src/clients/kafka/err/');
+const subscribedTopics = require('../../../src/clients/kafka/TopicSubscription');
 
 // const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
 
