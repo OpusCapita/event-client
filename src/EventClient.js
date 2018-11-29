@@ -13,9 +13,11 @@ const ON_DEATH = require('death'); // This is intentionally ugly
  *
  * @todo Methods form 2x EventClient:
  *   - unsubscribe
+ *
  *   - getMessage: Not supported by Kafka -> checked: Used by archive, blob
  *   - ackMessage: Not supported by Kafka -> checked: Used by archive, blob
  *   - nackMessage: Not supported by Kafka -> checked: Used by archive, blob
+ *
  *   - queueExists: Kafka does not care, implement for Rabbit, check if this is used public interface -> Checked: Used by web-init, blob
  *   - deleteQueue: Kafka does not care, implement for Rabbit, check if this is used public interface -> Checked: Only used internally
  *   - exchangeExists: Exchanges do not exist in Kafka, check if this is used public interface -> Checked: Only used internally

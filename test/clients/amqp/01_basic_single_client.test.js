@@ -6,7 +6,7 @@ const assert = require('assert');
 
 const configService = require('@opuscapita/config');
 const Logger = require('ocbesbn-logger');
-const {EventClient} = require('../lib');
+const EventClient = require('../../../src/clients/amqp');
 const rabbitCmd = require('./helpers/rabbitmq');
 
 const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
@@ -100,7 +100,7 @@ describe('EventClient single instance tests', () => {
             result.payload = payload;
             result.context = context;
             result.key = key;
-        })
+        });
 
         await sleep(500);
 

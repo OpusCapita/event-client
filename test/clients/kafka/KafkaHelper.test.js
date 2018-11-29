@@ -6,7 +6,7 @@ const assert = require('assert');
 
 const KafkaHelper = require('../../../src/clients/kafka/KafkaHelper');
 
-describe.only('KafkaHelper', () => {
+describe('KafkaHelper', () => {
 
     it('Should exist', () => {
         const k = new KafkaHelper();
