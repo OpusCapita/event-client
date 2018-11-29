@@ -17,16 +17,44 @@ module.exports = class KafkaHelper {
         if (typeof routingKey !== 'string') { throw new TypeError('String expected for param routingKey.'); }
         if (!routingKey.length) { throw new Error('Empty routing key not supported.'); }
 
+        let result;
         const parts = routingKey.split('.');
 
         if (parts.length === 1 || parts.length === 2) {
-            return routingKey;
+            result = routingKey;
         } else {
-            return `${parts[0]}.${parts[1]}`;
+            result = `${parts[0]}.${parts[1]}`;
         }
+
+        result = KafkaHelper.convertRabbitWildcard(result);
+
+        return result;
     }
 
-    static convertRabbitWildcard() {
+    /**
+     * Takes a RabbitMQ wildcard routingKey and converts it to
+     * a kafka topic.
+     *
+     * @function convertRabbitWildcard
+     * @param {string} routingKey - The RabbitMQ routingKey
+     * @returns {string} The kafka topic matching the routing key
+     */
+    static convertRabbitWildcard(routingKey) {
+        const hasWildcard = routingKey.indexOf('*') >= 0 || routingKey.indexOf('#') >= 0;
+
+        let result;
+
+        if (hasWildcard) {
+            result = routingKey.replace(/\./g, '\\.');
+            result = result.replace(/\*/g, '\\S*');
+            result = result.replace(/\#/g, '\\w*\\b');
+            result = '^' + result;
+            result = new RegExp(result);
+        } else {
+            result = routingKey;
+        }
+
+        return result;
     }
 
 };
