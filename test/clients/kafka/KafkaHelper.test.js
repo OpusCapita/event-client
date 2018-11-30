@@ -38,7 +38,7 @@ describe('KafkaHelper', () => {
             const topic = 'alpha.beta';
 
             const result = KafkaHelper.getTopicFromRoutingKey(key);
-            assert.strictEqual(result.toString(), '/^alpha\\.\\w*\\b/');
+            assert.strictEqual(result.toString(), '/^alpha\\.\\S*/');
             assert.ok(result.test(topic));
         });
 
@@ -47,7 +47,7 @@ describe('KafkaHelper', () => {
             const topic = 'alpha.beta';
 
             const result = KafkaHelper.getTopicFromRoutingKey(key);
-            assert.strictEqual(result.toString(), '/^alpha\\.b\\S*/');
+            assert.strictEqual(result.toString(), '/^alpha\\.b\\w*\\b/');
             assert.ok(result.test(topic));
         });
 
@@ -56,7 +56,7 @@ describe('KafkaHelper', () => {
             const topic = 'alpha.beta';
 
             const result = KafkaHelper.getTopicFromRoutingKey(key);
-            assert.strictEqual(result.toString(), '/^\\S*\\.\\w*\\b/');
+            assert.strictEqual(result.toString(), '/^\\w*\\b\\.\\S*/');
             assert.ok(result.test(topic));
         });
 
@@ -91,19 +91,19 @@ describe('KafkaHelper', () => {
 
         it('Should replace all * with the non-whitespace matcher', () => {
             const result = KafkaHelper.convertRabbitWildcard(routingKeyWithPattern1);
-            assert.strictEqual(result.toString(), '/^alpha\\.\\S*\\.gamma\\.\\S*/');
+            assert.strictEqual(result.toString(), '/^alpha\\.\\w*\\b\\.gamma\\.\\w*\\b/');
             assert.ok(result.test(routingKey));
         });
 
         it('Should replace all # with word delimiter', () => {
             const result = KafkaHelper.convertRabbitWildcard(routingKeyWithPattern2);
-            assert.strictEqual(result.toString(), '/^alpha\\.\\w*\\b\\.gamma\\.\\w*\\b/');
+            assert.strictEqual(result.toString(), '/^alpha\\.\\S*\\.gamma\\.\\S*/');
             assert.ok(result.test(routingKey));
         });
 
         it('Should rewrite in mixed wildcard routingKeys, # and *', () => {
             const result = KafkaHelper.convertRabbitWildcard(routingKeyWithPattern3);
-            assert.strictEqual(result.toString(), '/^alpha\\.\\w*\\b\\.gam\\S*\\.delta/');
+            assert.strictEqual(result.toString(), '/^alpha\\.\\S*\\.gam\\w*\\b\\.delta/');
             assert.ok(result.test(routingKey));
         });
 

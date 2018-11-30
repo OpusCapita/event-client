@@ -35,6 +35,10 @@ module.exports = class KafkaHelper {
      * Takes a RabbitMQ wildcard routingKey and converts it to
      * a kafka topic.
      *
+     * From the RabbitMQ documentation:
+     *   * (star) can substitute for exactly one word
+     *   # (hash) can substitute for zero or more words
+     *
      * @function convertRabbitWildcard
      * @param {string} routingKey - The RabbitMQ routingKey
      * @returns {string} The kafka topic matching the routing key
@@ -46,8 +50,8 @@ module.exports = class KafkaHelper {
 
         if (hasWildcard) {
             result = routingKey.replace(/\./g, '\\.');
-            result = result.replace(/\*/g, '\\S*');
-            result = result.replace(/\#/g, '\\w*\\b');
+            result = result.replace(/\*/g, '\\w*\\b');
+            result = result.replace(/\#/g, '\\S*');
             result = '^' + result;
             result = new RegExp(result);
         } else {

@@ -7,7 +7,7 @@ const AmqpConnection = require('./AmqpConnection');
 const AmqpChannel = require('./AmqpChannel');
 const EventError = require('./EventError');
 
-class AmqpClient 
+class AmqpClient
 {
     /**
      * Class for simplifying access to message queue servers implementing the Advanced Message Queuing Protocol (amqp). Each instance of this class is capable of receiving and emitting events.
@@ -265,8 +265,6 @@ class AmqpClient
                         }
                     }
                 };
-                console.log('YYYYYYYYYYYYY');
-
 
                 return await channel.registerConsumer({
                     exchangeName,

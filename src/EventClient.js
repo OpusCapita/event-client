@@ -1,5 +1,6 @@
 const AmqpClient     = require('./clients/amqp/');
 const KafkaClient    = require('./clients/kafka/');
+const KafkaHelper    = require('./clients/kafka/KafkaHelper');
 const {NotImplError} = require('./err/');
 
 const configService = require('@opuscapita/config');
@@ -175,14 +176,16 @@ class EventClient {
      *
      * @async
      * @function _subscribeKafka
-     * @param {string} topic - Full name of a topic or a pattern.
+     * @param {string} routingKey - EventClient v2x routingKey.
      * @param {function} callback - Optional function to be called when a message for a topic or a pattern arrives.
      * @param {SubscribeOpts} opts - Additional options to set for the subscription.
      * @returns {Promise}
      * @fulfil {null}
      * @reject {Error}
      */
-    async _subscribeKafka(topic, callback = null, opts = {}) {
+    async _subscribeKafka(routingKey, callback = null, opts = {}) {
+        const topic = KafkaHelper.getTopicFromRoutingKey(routingKey); // Convert routingKey to kafka topic
+        this.logger.info(this.klassName, `#_subscribeKafka: Converted routing key ${routingKey} to topic ${topic}`);
         return this.kafkaClient.subscribe(topic, callback, opts);
     }
 

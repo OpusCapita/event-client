@@ -3,7 +3,7 @@ const Logger = require('ocbesbn-logger');
 
 const {EventClient} = require('../src');
 
-const extend = require('extend');
+// const extend = require('extend');
 
 const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
 
@@ -33,7 +33,7 @@ function main() {
 
         global.ec1 = cs1;
 
-        await cs1.subscribe('^pattern.*.com', (message, headers) => {
+        await cs1.subscribe('event-client.#', (message, headers) => {
             console.log('CS1: Received message: ', message, '-', headers);
         });
 
@@ -48,8 +48,8 @@ function main() {
         let cnt = 0;
         setInterval(() => {
             console.log('Publishing #', cnt);
-            cs1.publish('pattern.oc.com', `${Date.now()} - ${cnt++}`, {'custom': 'context'});
-        }, 5000);
+            cs1.publish('event-client.debug.subone', `${Date.now()} - ${cnt++}`, {'custom': 'context'});
+        }, 60000);
 
         // setInterval(async () => {
         //     cs1.checkHealth()

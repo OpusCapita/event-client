@@ -83,7 +83,7 @@ describe('EventClient', () => {
         });
     });
 
-    describe.only('#publish', () => {
+    describe('#publish', () => {
         let client;
 
         beforeEach(() => client = eventClientFactory({
