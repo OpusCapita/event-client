@@ -15,6 +15,7 @@ function main() {
         await sleep(2000); // Wait for remote debugger
 
         const config = {
+            sendWith: 'kafka',
             serviceName: 'event-client',
             consumerGroupId: process.env.CONSUMER_GROUP_ID || 'event-client',
             logger: new Logger(),
@@ -33,8 +34,8 @@ function main() {
 
         global.ec1 = cs1;
 
-        await cs1.subscribe('event-client.#', (message, headers) => {
-            console.log('CS1: Received message: ', message, '-', headers);
+        await cs1.subscribe('event-client.#', (message, headers, topic, routingKey) => {
+            console.log('CS1: Received message: ', message, ' | ', headers, ' | RoutingKey: ', routingKey);
         });
 
         // await cs2.subscribe('^pattern.*', (message, headers) => {
@@ -49,7 +50,7 @@ function main() {
         setInterval(() => {
             console.log('Publishing #', cnt);
             cs1.publish('event-client.debug.subone', `${Date.now()} - ${cnt++}`, {'custom': 'context'});
-        }, 60000);
+        }, 6000);
 
         // setInterval(async () => {
         //     cs1.checkHealth()

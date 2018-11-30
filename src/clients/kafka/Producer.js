@@ -102,10 +102,10 @@ class Producer extends EventEmitter
      * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to null if the subscription succeeded. Otherwise the promise gets rejected with an error.
      * @reject {Error}
      */
-    async publish(topic, content, context = null)
+    async publish(topic, content, context = null, opts = {})
     {
         if (!this._knownTopics.includes(topic)) {
-            await this._producer.getTopicMetadata(topic); // Create topic on kafka
+            await this._producer.getTopicMetadata(topic); // Create topic on kafka if it does not exists
             this._knownTopics.push(topic);
         }
 
@@ -117,6 +117,7 @@ class Producer extends EventEmitter
         });
 
         message.properties = {
+            routingKey: opts.routingKey || topic, // Used for backwards compatibillity with Event-Client v2x (rabbitmq)
             contentType: this.config.serializerContentType,
             contentEncoding: 'utf-8',
             correlationId: context && context.correlationId,

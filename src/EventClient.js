@@ -18,8 +18,8 @@ const ON_DEATH = require('death'); // This is intentionally ugly
  *   - getMessage: Not supported by Kafka -> checked: Used by archive, blob
  *   - ackMessage: Not supported by Kafka -> checked: Used by archive, blob
  *   - nackMessage: Not supported by Kafka -> checked: Used by archive, blob
- *
  *   - queueExists: Kafka does not care, implement for Rabbit, check if this is used public interface -> Checked: Used by web-init, blob
+ *
  *   - deleteQueue: Kafka does not care, implement for Rabbit, check if this is used public interface -> Checked: Only used internally
  *   - exchangeExists: Exchanges do not exist in Kafka, check if this is used public interface -> Checked: Only used internally
  *   - hasSubscription: check if this is used on the public interface -> Checked: Only used internally
@@ -86,6 +86,13 @@ class EventClient {
         return true;
     }
 
+    /**
+     * Delegate to dispose of client implementations.
+     *
+     * @async
+     * @function dispose
+     * @return {Promise}
+     */
     async dispose()
     {
         return Promise.all([
@@ -97,18 +104,9 @@ class EventClient {
     /**
      * Delegates to publish().
      *
-     * TODO check for partition key
-     * TODO First two elements of topic define the kafka topic, eg:
-     *         topic: supplier.bank-account.created -> kafka topic: supplier.bank-account
-     *
      * @async
      * @function emit
-     * @param {string} topic - Full name of a topic.
-     * @param {object} message - Payload to be sent to a receiver.
-     * @param {object} context - Optional context containing meta data for the receiver of an event.
-     * @param {EmitOpts} opts - Additional options to be set for emmiting an event.
-     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to null if the subscription succeeded. Otherwise the promise gets rejected with an error.
-     * @throws {Error}
+     * @return {Promise}
      */
     async emit(...args)
     {
@@ -116,18 +114,26 @@ class EventClient {
         return this.publish(...args);
     }
 
+
+    /**
+     * Delegates to init() of client implementations.
+     *
+     * @async
+     * @function init
+     * @return {Promise}
+     */
     async init()
     {
-        await this.kafkaClient.init(this.config);
-        await this.amqpClient.init(this.config);
-
-        return true;
-
-        // return Promise.all([this.kafkaClient.init(), this.amqpClient.init()]);
+        return Promise.all([
+            this.kafkaClient.init(),
+            this.amqpClient.init()
+        ]);
     }
 
     /**
      * Publish a message to the message broker.
+     *
+     * @todo add partition key, throw if missing
      *
      * @async
      * @function publish
@@ -141,9 +147,13 @@ class EventClient {
      */
     async publish(routingKey, message, context = null, opts = {})
     {
-        // throw new NotImplError(`${this.klassName}#publish: Not implemented.`, 'ENOTIMPL');
-
-        return await this.amqpClient.emit(routingKey, message, context, opts);
+        if (this.config.sendWith === 'rabbitmq') {
+            return await this.amqpClient.emit(routingKey, message, context, opts);
+        } else if (this.config.sendWith === 'kafka') {
+            return await this._publishKafka(routingKey, message, context, opts);
+        } else {
+            throw new NotImplError(`${this.klassName}#publish: Trying to use an unimplemented transport to publish - ${this.config.sendWith}.`, 'ENOTIMPL');
+        }
     }
 
     /**
@@ -166,6 +176,18 @@ class EventClient {
     }
 
     /** *** PRIVATE *** */
+
+    /**
+     * Publish to kafka topic.
+     *
+     * @async
+     * @function _publishKafka
+     */
+    async _publishKafka(routingKey, message, context, opts) {
+        const topic = KafkaHelper.getTopicFromRoutingKey(routingKey); // Convert routingKey to kafka topic
+        this.logger.info(this.klassName, `#_subscribeKafka: Converted routing key ${routingKey} to topic ${topic}`);
+        return this.kafkaClient.publish(topic, message, context, extend(true, opts, {routingKey}));
+    }
 
     /**
      * Modify event-client v2x subscriptions to confirm to Kafka conventions.
@@ -196,6 +218,7 @@ class EventClient {
 *
 * @property {object} serializer - Function to use for serializing messages in order to send them.
 * @property {object} parser - Function to use for deserializing messages received.
+* @property {string} sendWith - Identifier to indicate which broker should be used to send messages (rabbitmq, kafka)
 * @property {string} serializerContentType - Content type of the serialized message added as a meta data field to each event emitted.
 * @property {string} parserContentType - Content type for which events should be received and parsed using the configured parser.
 * @property {string} consumerGroupId - The name of the consumerGroup the client uses for subscriptions. By default this is the name of the service as from [@opuscapita/config](https://github.com/OpusCapita/config/wiki#serviceName).
@@ -217,6 +240,7 @@ class EventClient {
 EventClient.DefaultConfig = {
     serializer: JSON.stringify,
     parser: JSON.parse,
+    sendWith: 'rabbitmq',
     serializerContentType: 'application/json',
     parserContentType: 'application/json',
     consumerGroupId: null,

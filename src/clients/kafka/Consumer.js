@@ -350,9 +350,10 @@ class Consumer extends EventEmitter
      */
     _onConsumerMessage(message)
     {
-        let payload, context;
+        let payload, context, rabbitRoutingKey;
         try {
-            const {content, headers} = this._prepareIncomingMessage(message);
+            const {routingKey, content, headers} = this._prepareIncomingMessage(message);
+            rabbitRoutingKey = routingKey;
             payload = content;
             context = headers;
         } catch (e) {
@@ -365,7 +366,7 @@ class Consumer extends EventEmitter
             if (message.topic.match(new RegExp(t)))
             {
                 try {
-                    cb(payload, context, message.topic);  // TODO Check if topic has to be the third param, eg. (payload, context, topic/key)
+                    cb(payload, context, message.topic, rabbitRoutingKey);  // TODO Check if topic has to be the third param, eg. (payload, context, topic/key)
                 } catch (e) {
                     this.logger.error('Consumer#_onConsumerMessage: Calling the registered callback for topic ', message.topic, ' failed with exception.', e);
                 }
@@ -426,6 +427,7 @@ class Consumer extends EventEmitter
         }
 
         return {
+            routingKey: messageProperties.routingKey,
             content,
             headers
         };
