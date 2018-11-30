@@ -83,7 +83,7 @@ describe('EventClient', () => {
         });
     });
 
-    describe('#publish', () => {
+    describe('#publish and #subscribe', () => {
         let client;
 
         beforeEach(() => client = eventClientFactory({
@@ -99,7 +99,7 @@ describe('EventClient', () => {
             const msg = `ping ${Date.now()}`;
             const receivedMessages = [];
 
-            await client.subscribe('event-client.test.producing', (message, headers, routingKey) => {
+            await client.subscribe('event-client.test.producing', (message, headers, topic, routingKey) => {
                 receivedMessages.push(message);
             });
 
@@ -115,6 +115,13 @@ describe('EventClient', () => {
 
             assert(ok);
         });
+    });
+
+    describe('#unsubscribe', () => {
+
+        it('Should unsubscribe from a topic without pattern');
+        it('Should unsubscribe from a topic wit pattern');
+
     });
 
 });
