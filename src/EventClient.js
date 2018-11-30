@@ -125,9 +125,24 @@ class EventClient {
         // return Promise.all([this.kafkaClient.init(), this.amqpClient.init()]);
     }
 
-    async publish()
+    /**
+     * Publish a message to the message broker.
+     *
+     * @async
+     * @function publish
+     * @param {string} routingKey - Full name of a topic.
+     * @param {object} message - Payload to be sent to a receiver.
+     * @param {object} context - Optional context containing meta data for the receiver of an event.
+     * @param {EmitOpts} opts - Additional options to be set for emmiting an event.
+     * @returns {Promise}
+     * @fulfil null
+     * @reject {Error}
+     */
+    async publish(routingKey, message, context = null, opts = {})
     {
-        throw new NotImplError(`${this.klassName}#dispose: Not implemented.`, 'ENOTIMPL');
+        // throw new NotImplError(`${this.klassName}#publish: Not implemented.`, 'ENOTIMPL');
+
+        return await this.amqpClient.emit(routingKey, message, context, opts);
     }
 
     /**
@@ -172,5 +187,50 @@ class EventClient {
     }
 
 }
+
+/**
+* Static object representing a default configuration set.
+*
+* @property {object} serializer - Function to use for serializing messages in order to send them.
+* @property {object} parser - Function to use for deserializing messages received.
+* @property {string} serializerContentType - Content type of the serialized message added as a meta data field to each event emitted.
+* @property {string} parserContentType - Content type for which events should be received and parsed using the configured parser.
+* @property {string} consumerGroupId - The name of the consumerGroup the client uses for subscriptions. By default this is the name of the service as from [@opuscapita/config](https://github.com/OpusCapita/config/wiki#serviceName).
+* @property {string} queueName - Name of the queue to connect to. By default this is the service name as of [@opuscapita/config](https://github.com/OpusCapita/config/wiki#serviceName).
+* @property {string} exchangeName - The name of the exchnage to emit events to. By default this is the name of the service as from [@opuscapita/config](https://github.com/OpusCapita/config/wiki#serviceName).
+* @property {object} logger - [Logger](https://github.com/OpusCapita/logger) object to be used for logging.
+* @property {object} consul - Object for configuring consul related parameters.
+* @property {string} consul.host - Hostname of a consul server.
+* @property {string} consul.mqServiceName - Name of the endpoint for the message queue server in consul.
+* @property {string} consul.mqUserKey - Consul configuration key for message queue authentication.
+* @property {string} consul.mqPasswordKey - Consul configuration key for message queue authentication.
+* @property {object} consulOverride - Configuraion object for manually overriding the message queue connection configuration.
+* @property {string} consulOverride.host - Hostname of a message queue server.
+* @property {number} consulOverride.port - Port of a message queue server.
+* @property {string} consulOverride.username - User name for message queue authentication.
+* @property {string} consulOverride.password - User password for message queue authentication.
+* @property {object} context - Optional context object to automatically extend emitted messages.
+*/
+EventClient.DefaultConfig = {
+    serializer: JSON.stringify,
+    parser: JSON.parse,
+    serializerContentType: 'application/json',
+    parserContentType: 'application/json',
+    consumerGroupId: null,
+    queueName: null,
+    exchangeName: null,
+    logger: new Logger(),
+    consul: {
+        host: 'consul',
+    },
+    consulOverride: {
+        host: null,
+        port: null,
+        username: null,
+        password: null
+    },
+    context: {
+    }
+};
 
 module.exports = EventClient;

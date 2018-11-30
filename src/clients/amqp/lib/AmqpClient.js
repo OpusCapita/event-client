@@ -265,6 +265,8 @@ class AmqpClient
                         }
                     }
                 };
+                console.log('YYYYYYYYYYYYY');
+
 
                 return await channel.registerConsumer({
                     exchangeName,

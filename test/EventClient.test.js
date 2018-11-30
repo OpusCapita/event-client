@@ -3,6 +3,7 @@
 /* eslint key-spacing: 0 */
 
 const assert        = require('assert');
+const retry         = require('bluebird-retry');
 const configService = require('@opuscapita/config');
 const extend        = require('extend');
 const Logger        = require('ocbesbn-logger');
@@ -19,18 +20,16 @@ const eventClientFactory = (config) => {
         serviceName: 'event-client',
         consumerGroupId: 'test',
         consulOverride,
-        logger: Logger.DummyLogger
+        logger: Logger.DebugLogger
     }, config));
 };
 
-describe('EventClient basic setup test.', () => {
-    before(async () =>
-    {
+describe('EventClient', () => {
+    before(async () => {
         return await configService.init({logger : Logger.DummyLogger});
     });
 
-    after('Shutdown', async () =>
-    {
+    after('Shutdown', async () => {
         await configService.dispose();
     });
 
@@ -82,7 +81,41 @@ describe('EventClient basic setup test.', () => {
             assert.deepEqual(client.kafkaClient.config.context, ctx);
             assert.deepEqual(client.amqpClient.config.context, ctx);
         });
-        
     });
+
+    describe.only('#publish', () => {
+        let client;
+
+        beforeEach(() => client = eventClientFactory({
+            consumerGroupId: `test-${Date.now()}` // Consumer group id randomization fixes problem with timeouts on rebalancing on kafka
+        }));
+
+        afterEach(async () => {
+            client && await client.dispose();
+            client = null;
+        });
+
+        it('Should publish messages to a topic.', async () => {
+            const msg = `ping ${Date.now()}`;
+            const receivedMessages = [];
+
+            await client.subscribe('event-client.test.producing', (message, headers, routingKey) => {
+                receivedMessages.push(message);
+            });
+
+            await client.publish('event-client.test.producing', msg);
+
+            let ok = await retry(() => {
+                if (receivedMessages.includes(msg)) {
+                    return Promise.resolve(true);
+                } else {
+                    return Promise.reject(new Error('Message not yet received'));
+                }
+            }, {'max_tries': 80}); // Long wait interval, kafka rebalancing takes some time
+
+            assert(ok);
+        });
+    });
+
 });
 
