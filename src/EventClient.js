@@ -10,13 +10,10 @@ const extend   = require('extend');
 const ON_DEATH = require('death'); // This is intentionally ugly
 
 /**
- * @todo Implement config to switch publishing to kafka (defaults to rabbit)
- *
  * @todo Methods form 2x EventClient:
  *   - getMessage: Not supported by Kafka -> checked: Used by archive, blob
  *   - ackMessage: Not supported by Kafka -> checked: Used by archive, blob
  *   - nackMessage: Not supported by Kafka -> checked: Used by archive, blob
- *   - queueExists: Kafka does not care, implement for Rabbit, check if this is used public interface -> Checked: Used by web-init, blob
  *
  * Public methods form 2x EventClient that do not need to be delegated b/c they are used only internally
  *   - deleteQueue: No queues in Kafka + topics are created when first used
@@ -160,6 +157,30 @@ class EventClient {
             return await this._publishKafka(routingKey, message, context, opts);
         } else {
             throw new NotImplError(`${this.klassName}#publish: Trying to use an unimplemented transport to publish - ${this.config.sendWith}.`, 'ENOTIMPL');
+        }
+    }
+
+    /**
+     * Check if a queue exists on the broker. Only used when for RabbitMQ as Kafka does not
+     * care. On Kafka topics are created as soon as someone produces to it and subscribers will
+     * be informed on topic creation.
+     *
+     * @async
+     * @function queueExists
+     * @param {string} topic - The topic to check for existence
+     * @return {Promise}
+     * @fulfil {boolean}
+     * @reject {NotImplError}
+     */
+    async queueExists(name)
+    {
+        if (this.config.sendWith === 'rabbitmq') {
+            return this.amqpClient.queueExists(name);
+        } else if (this.config.sendWith === 'kafka') {
+            this.logger.warn(this.klassName, '#queueExists: Deprecation warning. Queues do not exist on Kafka.');
+            return true;
+        } else {
+            throw new NotImplError(`${this.klassName}#queueExists: Not implemented for this broker`, 'ENOTIMPL');
         }
     }
 
