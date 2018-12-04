@@ -14,13 +14,6 @@ const ON_DEATH = require('death'); // This is intentionally ugly
  *   - getMessage: Not supported by Kafka -> checked: Used by archive, blob
  *   - ackMessage: Not supported by Kafka -> checked: Used by archive, blob
  *   - nackMessage: Not supported by Kafka -> checked: Used by archive, blob
- *
- * Public methods form 2x EventClient that do not need to be delegated b/c they are used only internally
- *   - deleteQueue: No queues in Kafka + topics are created when first used
- *   - exchangeExists: Exchanges do not exist in Kafka
- *   - hasSubscription
- *   - getQueueName
- *
  */
 class EventClient {
 
@@ -44,6 +37,12 @@ class EventClient {
         /**
          * Return a proxified version of this to keep track of
          * property access to detect missing implementations.
+         *
+         * Public methods form 2x EventClient that do not need to be delegated b/c they are used only internally
+         *   - deleteQueue: No queues in Kafka + topics are created when first used
+         *   - exchangeExists: Exchanges do not exist in Kafka
+         *   - hasSubscription
+         *   - getQueueName
          */
         return new Proxy(self, {
             get(target, key) {
@@ -131,8 +130,6 @@ class EventClient {
 
     /**
      * Publish a message to the message broker.
-     *
-     * @todo Add partition key, throw if missing.
      *
      * @async
      * @function publish
@@ -227,9 +224,9 @@ class EventClient {
     /**
      * Modify event-client v2x subscriptions to confirm to Kafka conventions.
      *
-     * @todo rewrite RabbitMQ wildcard subscriptions to Kafka RegEx
-     * @todo First two elements of topic define the kafka topic, eg:
-     *         topic: supplier.bank-account.created -> kafka topic: supplier.bank-account
+     * - rewrite RabbitMQ wildcard subscriptions to Kafka RegEx
+     *     - First two elements of topic define the kafka topic, eg:
+     *         - topic: supplier.bank-account.created -> kafka topic: supplier.bank-account
      *
      * @async
      * @function _subscribeKafka

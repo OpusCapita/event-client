@@ -124,7 +124,7 @@ class Consumer extends EventEmitter
     /**
      * Subscribe to a kafka topic.
      *
-     * @todo add config flag to consume only new messages when creating a new consumer group.
+     * @todo Add config flag to consume only messages that arrive AFTER the consumer group was created.
      *
      * @async
      * @function subscribe
@@ -201,7 +201,7 @@ class Consumer extends EventEmitter
 
     /**
      * Setup the underlying NConsumer, connect to kafka and register event listeners
-     * Currently uses ASAP mode for message consumption (TODO how to ack messages?)
+     * Currently uses ASAP mode for message consumption with auto ackknowledgement of messages.
      *
      * @private
      * @async
@@ -400,7 +400,7 @@ class Consumer extends EventEmitter
             if (message.topic.match(new RegExp(t)))
             {
                 try {
-                    const result = cb(payload, context, message.topic, rabbitRoutingKey);  // TODO Check if topic has to be the third param, eg. (payload, context, topic/key)
+                    const result = cb(payload, context, message.topic, rabbitRoutingKey);
                     if (result !== true) {
                         this.logger.warn(this.klassName, '#_onConsumerMessage: Application callback returned a value other than true.');
                         // @todo implement requeue behaviour
