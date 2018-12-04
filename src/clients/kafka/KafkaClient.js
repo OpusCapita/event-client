@@ -164,10 +164,10 @@ class KafkaClient
     }
 
     /**
-     * Raises an event for a certain topic by passing a message and an optional context.
+     * Publishes an event to a certain topic by passing a message and an optional context.
      *
      * The passed *topic* has to be a string and identify the raised event as exact as possible.
-     * The passed *message* can consis of all data types that can be serialized into a string.
+     * The passed *message* can consist of all data types that can be serialized into a string.
      * The optional *context* paraemter adds additional meta data to the event. It has to be an event
      * and will extend a possibly existing global context defined by the config object passed
      * to the constructor (see {@link KafkaClient.DefaultConfig}).

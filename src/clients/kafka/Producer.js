@@ -91,7 +91,7 @@ class Producer extends EventEmitter
     }
 
     /**
-     * Publish a message to the given topic
+     * Publish a message to the given topic.
      *
      * @async
      * @function publish
@@ -99,11 +99,18 @@ class Producer extends EventEmitter
      * @param {object} content - Payload to be sent to a receiver.
      * @param {object} context - Optional context containing meta data for the receiver of an event.
      * @param {EmitOpts} opts - Additional options to be set for emmiting an event.
+     * @param {string} opts.kafkaPartitionKey - Define the key that ensures inorder delivery per topic partition, eg. "tenantId".
      * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to null if the subscription succeeded. Otherwise the promise gets rejected with an error.
      * @reject {Error}
      */
     async publish(topic, content, context = null, opts = {})
     {
+        let partitionKey = opts.kafkaPartitionKey;
+        if (!partitionKey) {
+            partitionKey = null;
+            this.logger.warn(this.klassName, '#publish: Publishing a message without a partition key.');
+        }
+
         if (!this._knownTopics.includes(topic)) {
             await this._producer.getTopicMetadata(topic); // Create topic on kafka if it does not exists
             this._knownTopics.push(topic);
@@ -130,7 +137,8 @@ class Producer extends EventEmitter
 
         let result = null;
         try {
-            result = this._producer.send(topic, Buffer.from(JSON.stringify(message)));
+            const payload = Buffer.from(JSON.stringify(message));
+            result = this._producer.send(topic, payload, null, null, partitionKey, message.properties.appId);
         } catch (e) {
             this.logger && this.logger.error('Producer#publish: Failed to send message with exception.', e, message);
             throw e;

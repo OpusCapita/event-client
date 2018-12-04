@@ -73,6 +73,8 @@ class EventClient {
     get klassName()   { return this.constructor.name || 'EventClient'; }
 
     /**
+     * Apply context to all registered clients.
+     *
      * @public
      * @function contextify
      * @param {object} [context={}] - Overrides the current context
@@ -133,7 +135,7 @@ class EventClient {
     /**
      * Publish a message to the message broker.
      *
-     * @todo add partition key, throw if missing
+     * @todo Add partition key, throw if missing.
      *
      * @async
      * @function publish
@@ -141,12 +143,17 @@ class EventClient {
      * @param {object} message - Payload to be sent to a receiver.
      * @param {object} context - Optional context containing meta data for the receiver of an event.
      * @param {EmitOpts} opts - Additional options to be set for emmiting an event.
+     * @param {string} opts.kafkaPartitionKey - Define the key that ensures inorder delivery per topic partition, eg. "tenantId".
      * @returns {Promise}
      * @fulfil null
      * @reject {Error}
      */
     async publish(routingKey, message, context = null, opts = {})
     {
+        if (!opts.kafkaPartitionKey) {
+            this.logger.warn(this.klassName, '#publish: Publishing a message without a partition key.');
+        }
+
         if (this.config.sendWith === 'rabbitmq') {
             return await this.amqpClient.emit(routingKey, message, context, opts);
         } else if (this.config.sendWith === 'kafka') {
