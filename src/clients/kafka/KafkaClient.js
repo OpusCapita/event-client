@@ -201,7 +201,7 @@ class KafkaClient
     {
         if (!this._consumer) { await this._initConsumer(); }
 
-        return this._consumer.subscribe(topic, callback, opts);
+        return this.consumer.subscribe(topic, callback, opts);
     }
 
     /**

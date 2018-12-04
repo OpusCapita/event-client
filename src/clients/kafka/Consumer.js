@@ -14,15 +14,22 @@ class Consumer extends EventEmitter
         super();
 
         this.config = config;
-        this.logger = config.logger || new Logger();
 
-        this._consumer = null;
-
+        this._logger           = config.logger || new Logger();
+        this._consumer         = null;
         this._analyticsReady   = false;
         this._subscribedTopics = new Map(); // TODO Maybe this can use the topics property of the NConsumer?
     }
 
     /** *** PUBLIC *** */
+
+    get consumer()  { return this._consumer; }
+    get klassName() { return this.constructor.name || 'Consumer'; }
+
+    get logger() {
+        if (!this._logger) { this._logger = new Logger(); }
+        return this._logger;
+    }
 
     /**
      * Returns the result from the checkHealth of the native consumer.
@@ -117,7 +124,7 @@ class Consumer extends EventEmitter
     /**
      * Subscribe to a kafka topic.
      *
-     * TODO add config flag to consume only new messages when creating a new consumer group.
+     * @todo add config flag to consume only new messages when creating a new consumer group.
      *
      * @async
      * @function subscribe
@@ -253,6 +260,7 @@ class Consumer extends EventEmitter
          * Info:
          * - 1 by 1 mode by passing a callback to .consume() - consumes a single message and commit after callback each round
          * - asap mode by passing no callback to .consume() - consumes messages as fast as possible
+         *     - @todo add requeue functionallity to falsy return from the client callback that is called upon receiving a message.
          */
         this._consumer.consume(null, true, false, options);
 
@@ -323,17 +331,41 @@ class Consumer extends EventEmitter
     }
 
     /**
+     * Deserialize the application level content from incoming message
+     * with the given parser from this.config.parser.
+     *
+     * @function _deserializeMessageContent
+     * @param {Buffer|String}
+     * @return {object}
+     * @throws {ConsumerError}
+     */
+    _deserializeMessageContent(serializedContent)
+    {
+        let result = null;
+
+        try {
+            result = this.config.parser(serializedContent);
+        } catch (e) {
+            throw new ConsumerError('Failed to deserialize message content with exception.', 'EDESERIALIZEFAILED');
+        }
+
+        return result;
+    }
+
+    /**
      * Eventlistener for errors emitted by the consumer.
      *
      * @private
      * @function _onConsumerError
      */
     _onConsumerError(error) {
-        this.logger && this.logger.error('Consumer#_onConsumerError: Got error response: ', error);
+        this.logger.error(this.klassName, '#_onConsumerError: Got error response: ', error);
     }
 
     /**
      * Eventlistener for incoming messages.
+     *
+     * @todo Implement requeue behaviour for falsy values returned from the application callback in ASAP receiving mode.
      *
      * @private
      * @function _onConsumerMessage
@@ -357,8 +389,8 @@ class Consumer extends EventEmitter
             payload = content;
             context = headers;
         } catch (e) {
-            this.logger.error('Consumer#_onConsumerMessage: Failed to parse incoming message with exception ', message, e);
-            return;
+            this.logger.error(this.klassName, '#_onConsumerMessage: Failed to parse incoming message with exception.', message, e);
+            return; // !!!
         }
 
         for (const [t, cb] of subscribedTopics.entries())
@@ -366,12 +398,15 @@ class Consumer extends EventEmitter
             if (message.topic.match(new RegExp(t)))
             {
                 try {
-                    cb(payload, context, message.topic, rabbitRoutingKey);  // TODO Check if topic has to be the third param, eg. (payload, context, topic/key)
+                    const result = cb(payload, context, message.topic, rabbitRoutingKey);  // TODO Check if topic has to be the third param, eg. (payload, context, topic/key)
+                    if (result !== true) {
+                        this.logger.warn(this.klassName, '#_onConsumerMessage: Application callback returned a value other than true.');
+                        // @todo implement requeue behaviour
+                    }
                 } catch (e) {
-                    this.logger.error('Consumer#_onConsumerMessage: Calling the registered callback for topic ', message.topic, ' failed with exception.', e);
+                    this.logger.error(this.klassName, '#_onConsumerMessage: Calling the registered callback for topic ', message.topic, ' failed with exception.', e);
+                    // @todo implement requeue behaviour
                 }
-
-                // TODO Implement falsy cbResults (no-ack?)
             }
         }
     }
@@ -405,7 +440,7 @@ class Consumer extends EventEmitter
             throw new ConsumerError('Message has no value.', 'EMSGEMPTY');
         }
 
-        let parsedMessageValue =  JSON.parse(message.value); // This can throw a parser exception.
+        let parsedMessageValue =  JSON.parse(message.value); // This may throw a parser exception.
 
         if (!parsedMessageValue || !parsedMessageValue.properties) {
             throw new ConsumerError('Message without properties recveived.', 'EMSGINVALID');
@@ -419,12 +454,7 @@ class Consumer extends EventEmitter
         let headers = messageProperties.headers || {};
         headers.topic = message.topic;
 
-        let content = null;
-        try {
-            content = this.config.parser(parsedMessageValue.content);
-        } catch (e) {
-            throw new ConsumerError('Failed to deserialize message content with exception.', 'EDESERIALIZEFAILED');
-        }
+        let content = this._deserializeMessageContent(parsedMessageValue.content);
 
         return {
             routingKey: messageProperties.routingKey,
