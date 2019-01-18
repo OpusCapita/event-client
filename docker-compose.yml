@@ -6,6 +6,8 @@ services:
             - registrator
             - rabbit2
             - consul
+            - kafka3
+            - zoo3
         environment:
             RABBITMQ_USER: $RABBITMQ_USER
             RABBITMQ_PASS: $RABBITMQ_PASS
@@ -83,7 +85,7 @@ services:
             ZOO_MY_ID: 3
             ZOO_SERVERS: server.1=zoo1:2888:3888 server.2=zoo2:2888:3888 server.3=0.0.0.0:2888:3888
         depends_on:
-            - zoo1
+            - zoo2
 
     kafka1:
         image: wurstmeister/kafka
@@ -117,7 +119,7 @@ services:
             KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka2:9093'
             KAFKA_ZOOKEEPER_CONNECT: zoo1:2181
         depends_on:
-            - zoo1
+            - zoo2
             - kafka1
 
     kafka3:
@@ -136,7 +138,7 @@ services:
             KAFKA_ZOOKEEPER_CONNECT: zoo1:2181
             # KAFKA_CREATE_TOPICS: "test:10:3,second:2:2,pattern.one:10:3,pattern.two:10:3"
         depends_on:
-            - zoo1
+            - zoo3
             - kafka2
 
     registrator:
