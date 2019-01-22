@@ -562,9 +562,6 @@ class AmqpClient
             const config = this.config.consul;
             const consul = await configService.init();
 
-            const {host, port} = await consul.getEndPoint(config.mqServiceName);
-            const [username, password] = await consul.get([config.mqUserKey, config.mqPasswordKey]);
-
             this.onEndpointChanged = async (serviceName) =>
             {
                 if (serviceName === config.mqServiceName)
@@ -582,7 +579,6 @@ class AmqpClient
             {
                 if (key === config.mqUserKey || key === config.mqPasswordKey)
                 {
-                    this.logger.info(`Got on onPropertyChanged event for key ${key}.`);
                     try {
                         await this._doReconnect();
                     } catch (e) {
@@ -594,14 +590,22 @@ class AmqpClient
             consul.on('endpointChanged', this.onEndpointChanged);
             consul.on('propertyChanged', this.onPropertyChanged);
 
-            return {
-                host,
-                port,
-                username,
-                password,
-                maxConnectTryCount: 10,
-                httpPort: 15672
-            };
+            try {
+                const {host, port} = await consul.getEndPoint(config.mqServiceName);
+                const [username, password] = await consul.get([config.mqUserKey, config.mqPasswordKey]);
+
+                return {
+                    host,
+                    port,
+                    username,
+                    password,
+                    maxConnectTryCount: 10,
+                    httpPort: 15672
+                };
+            } catch (e) {
+                this.logger.error('AmqpClient#_getConfig: Failed to get all necessary data from consul.', e);
+                throw e;
+            }
         }
     }
 
