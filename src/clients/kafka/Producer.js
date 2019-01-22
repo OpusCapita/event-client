@@ -24,15 +24,12 @@ class Producer extends EventEmitter
 
     /** *** GETTER *** */
 
-    get knownTopics() {
-        return this._knownTopics;
-    }
+    get klassName() { return this.constructor.name || 'Producer'; }
+    get knownTopics() { return this._knownTopics; }
 
     /** *** SETTER *** */
 
-    set context(context) {
-        this.config.context = context;
-    }
+    set context(context) { this.config.context = context; }
 
     /** *** PUBLIC *** */
 

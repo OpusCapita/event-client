@@ -217,7 +217,7 @@ class EventClient {
      */
     async _publishKafka(routingKey, message, context, opts) {
         const topic = KafkaHelper.getTopicFromRoutingKey(routingKey); // Convert routingKey to kafka topic
-        this.logger.info(this.klassName, `#_subscribeKafka: Converted routing key ${routingKey} to topic ${topic}`);
+        this.logger.info(`${this.klassName}#_publishKafka: Converted routing key ${routingKey} to topic ${topic}`);
         return this.kafkaClient.publish(topic, message, context, extend(true, opts, {routingKey}));
     }
 
