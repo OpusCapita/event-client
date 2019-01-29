@@ -14,7 +14,7 @@
     "clean": "npx rimraf coverage/* .nyc_output",
     "test": "npm run clean ; npm run setup-consul ; npx nyc mocha --timeout 120000 -R mocha-junit-reporter test/*.js",
     "test:raw": "npm run clean ; npm run setup-consul ; npx mocha --inspect=0.0.0.0:9230  --timeout 120000 test/**/*.test.js",
-    "test:watch": "npm run clean; npm run setup-consul; npx mocha --watch --inspect=0.0.0.0:9230 --timeout 120000 --recursive  ./test/**/*.test.js",
+    "test:watch": "npm run clean; npm run setup-consul; npx mocha --watch --inspect=0.0.0.0:9230 --timeout 120000 --recursive  ./test/**/*.test.js ./src/**/*.js",
     "test-coverage": "npm run clean ; npm run setup-consul ; npx nyc --reporter=lcov mocha --timeout 120000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
     "upload-coverage": "cat ./coverage/lcov.info | npx coveralls",
     "api-doc": "npx jsdoc2md --files ./src/clients/amqp/lib/* ./src/clients/kafka/* > wiki/Home.md",
@@ -30,14 +30,14 @@
   ],
   "dependencies": {
     "@opuscapita/config": "^3.0.16",
-    "amqplib": "^0.5.2",
+    "amqplib": "^0.5.3",
     "bluebird": "^3.5.3",
     "bluebird-retry": "^0.11.0",
+    "death": "^1.1.0",
     "extend": "^3.0.1",
     "ocbesbn-logger": "^1.0.11",
-    "superagent": "^3.8.3",
-    "death": "^1.1.0",
-    "sinek": "^6.23.4"
+    "sinek": "^6.23.4",
+    "superagent": "^3.8.3"
   },
   "devDependencies": {
     "coveralls": "^3.0.1",
