@@ -340,6 +340,8 @@ class KafkaClient
         const headers = (((parsedMessage || {}).properties) || {}).headers || null;
 
         if (headers) {
+            if (!this._producer) { await this._initProducer(); }
+
             if (headers.retryCount && headers.retryCount >= 5) {
                 // Send to DLQ after 5 retries
                 const dlq = `${parsedMessage.properties.routingKey}__dlq`;
