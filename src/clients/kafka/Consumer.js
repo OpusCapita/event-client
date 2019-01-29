@@ -262,7 +262,6 @@ class Consumer extends EventEmitter
          *     - The callback provided as first parameter will receive the message and another callback. The callback
          *       needs to be executed to finish the message processing in the native consumer {@link node-sinek/NConsuer#consume:569}
          * - asap mode by passing no callback to .consume() - consumes messages as fast as possible
-         *     - @todo add requeue functionallity to falsy return from the client callback that is called upon receiving a message.
          */
         this._consumer.consume(null, true, false, options);
 
