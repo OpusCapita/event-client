@@ -1,9 +1,8 @@
+const extend = require('extend');
 const configService = require('@opuscapita/config');
 const Logger = require('ocbesbn-logger');
 
 const {EventClient} = require('../src');
-
-// const extend = require('extend');
 
 const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
 
@@ -27,20 +26,22 @@ function main() {
         };
 
         const cs1 = new EventClient(config);
-        // const cs2 = new EventClient(extend(true, config, {consumerGroupId: 'beta'}));
+        const cs2 = new EventClient(extend(true, config, {consumerGroupId: 'beta'}));
 
         await cs1.init();
-        // // await cs2.init();
+        await cs2.init();
 
         global.ec1 = cs1;
 
         await cs1.subscribe('event-client.#', (message, headers, topic, routingKey) => {
             console.log('CS1: Received message: ', message, ' | ', headers, ' | RoutingKey: ', routingKey);
-        });
+            return true;
+        }).catch(console.error);
 
-        // await cs2.subscribe('^pattern.*', (message, headers) => {
-        //     console.log('CS2: Received message: ', message, '-', headers);
-        // });
+        await cs2.subscribe('event-client.#', (message, headers) => {
+            console.log('CS2: Received message: ', message, '-', headers);
+        }).catch(console.error);
+
 
         // // await cs1.subscribe('beta', (message) => {
         // //     console.log('Main: Received message: ', message);
