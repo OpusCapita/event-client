@@ -151,7 +151,7 @@ describe('EventClient multi instance tests', () => {
             });
         });
 
-        it.only('Should send messages to the dead letter queue.', () => {
+        it('Should send messages to the dead letter queue.', () => {
             return new Promise(async (resolve, reject) => {
                 let txCnt = 0;
                 let dlqReceived = false;
