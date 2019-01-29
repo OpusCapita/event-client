@@ -294,6 +294,8 @@ class KafkaClient
         let connectionConfig = await this._getMqConfig();
         const connectResult = await this._consumer.connect(connectionConfig);
 
+        this.consumer.on('requeue', this._onConsumerRequeue.bind(this));
+
         this.logger && this.logger.info('KafkaClient#_initConsumer: Consumer connection setup returned: ', connectResult);
 
         return connectResult;
@@ -314,6 +316,57 @@ class KafkaClient
         await this._producer.connect(connectionConfig);
 
         return true;
+    }
+
+    /**
+     * Requeue behaviour for kafka.
+     *
+     * @async
+     * @function _onConsumerRequeue
+     * @param {object} message
+     * @param {string} message.key
+     * @param {number} message.offset
+     * @param {number} message.partition
+     * @param {number} message.size - Length of the message.value
+     * @param {number} message.timestamp
+     * @param {string} message.topic
+     * @param {string} message.value - Message payload. Should contain JSON with metadata and payload
+     * @param {object} message.value.properties - Stringified JSON containing message headers maintained by KafkaClient
+     * @param {string} message.value.properties.routingKey - Topic the message is produced to.
+     * @param {string} message.value.content    - Stringified JSON containing the actual payload of the message. Needs to be deserialized with the parser given in the config from KafkaClient#constructor.
+     */
+    async _onConsumerRequeue(message) {
+        const parsedMessage = JSON.parse(message.value);
+        const headers = (((parsedMessage || {}).properties) || {}).headers || null;
+
+        if (headers) {
+            if (headers.retryCount && headers.retryCount >= 5) {
+                // Send to DLQ after 5 retries
+                const dlq = `${parsedMessage.properties.routingKey}__dlq`;
+                this.logger.info(`${this.klassName}#_onConsumerRequeue: Moving msg to DLQ.`, dlq);
+
+                parsedMessage.properties.routingKey = dlq;
+
+                try {
+                    await this.producer._publish(parsedMessage);
+                } catch (e) {
+                    this.logger.error(`${this.klassName}#_onConsumerRequeue: Failed to move msg to DLQ.`, dlq, message);
+                }
+            } else {
+                // Increment retry header and requeue message
+                let retryCount = headers.retryCount || 0;
+
+                parsedMessage.properties.headers.retryCount = ++retryCount;
+
+                try {
+                    await this.producer._publish(parsedMessage);
+                } catch (e) {
+                    this.logger.error(`${this.klassName}#_onConsumerRequeue: Failed to requeue message.`, message);
+                }
+            }
+        } else {
+            this.logger.error(`${this.klassName}#_onConsumerRequeue: Failed to parse incoming message.`, message);
+        }
     }
 
 }

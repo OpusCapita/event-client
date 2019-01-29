@@ -397,17 +397,23 @@ class Consumer extends EventEmitter
 
         for (const [t, cb] of subscribedTopics.entries())
         {
+            let requeMessage = false;
+
             if (message.topic.match(new RegExp(t)))
             {
                 try {
                     const result = cb(payload, context, message.topic, rabbitRoutingKey);
-                    if (result !== true) {
+                    if (result !== true && !message.topic.endsWith('__dlq')) {
                         this.logger.warn(this.klassName, '#_onConsumerMessage: Application callback returned a value other than true.');
-                        // @todo implement requeue behaviour
+                        requeMessage = true;
                     }
                 } catch (e) {
                     this.logger.error(this.klassName, '#_onConsumerMessage: Calling the registered callback for topic ', message.topic, ' failed with exception.', e);
-                    // @todo implement requeue behaviour
+                    requeMessage = true;
+                }
+
+                if (requeMessage) {
+                    this.emit('requeue', message);
                 }
             }
         }
@@ -431,7 +437,7 @@ class Consumer extends EventEmitter
      * @param {object} message
      * @param {string} message.value - Stringified JSON of message structure
      * @returns {object} Struct containing message content and headers
-     * @throws {ConsumerError}
+     * @throws {ConsumerError|ParserError}
      */
     _prepareIncomingMessage(message) {
         if (!message || !message.topic) {

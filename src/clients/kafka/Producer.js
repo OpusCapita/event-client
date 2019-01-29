@@ -127,21 +127,13 @@ class Producer extends EventEmitter
             correlationId: context && context.correlationId,
             appId: this.config.serviceName,
             messageId: `${this.config.serviceName}.${crypto.randomBytes(16).toString('hex')}`,
-            headers: localContext
+            headers: localContext,
+            partitionKey
         };
 
         message.content = this.config.serializer(content);
 
-        let result = null;
-        try {
-            const payload = Buffer.from(JSON.stringify(message));
-            result = this._producer.send(topic, payload, null, null, partitionKey, message.properties.appId);
-        } catch (e) {
-            this.logger && this.logger.error('Producer#publish: Failed to send message with exception.', e, message);
-            throw e;
-        }
-
-        return result;
+        return this._publish(message);
     }
 
     /** *** PRIVATE METHODS *** */
@@ -262,6 +254,27 @@ class Producer extends EventEmitter
      */
     _onProducerError(error) {
         this.logger && this.logger.error('Producer#_onProducerError: Got error response: ', error);
+    }
+
+    /**
+     * Send message through sinek producer.
+     *
+     * @private
+     * @function _publish
+     * @param {object} message - @see publish
+     */
+    _publish(message) {
+        let result = null;
+
+        try {
+            const payload = Buffer.from(JSON.stringify(message));
+            result = this._producer.send(message.properties.routingKey, payload, null, null, message.properties.partitionKey, message.properties.appId);
+        } catch (e) {
+            this.logger && this.logger.error('Producer#publish: Failed to send message with exception.', e, message);
+            throw e;
+        }
+
+        return result;
     }
 
     /**
