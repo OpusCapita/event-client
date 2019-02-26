@@ -68,6 +68,10 @@ class EventClient {
     get kafkaClient() { return this._kafkaClient; }
     get klassName()   { return this.constructor.name || 'EventClient'; }
 
+    checkHealth() {
+        return this._kafkaClient.checkHealth();
+    }
+
     /**
      * Apply context to all registered clients.
      *
@@ -215,7 +219,12 @@ class EventClient {
      * @async
      * @function _publishKafka
      */
-    async _publishKafka(routingKey, message, context, opts) {
+    async _publishKafka(routingKey, message, context, opts)
+    {
+        const hasWildcard = routingKey.indexOf('*') >= 0 || routingKey.indexOf('#') >= 0;
+        if (hasWildcard)
+            throw new Error('Topic names are not allowed to contain wildcards.');
+
         const topic = KafkaHelper.getTopicFromRoutingKey(routingKey); // Convert routingKey to kafka topic
         this.logger.info(`${this.klassName}#_publishKafka: Converted routing key ${routingKey} to topic ${topic}`);
         return this.kafkaClient.publish(topic, message, context, extend(true, opts, {routingKey}));
@@ -237,9 +246,13 @@ class EventClient {
      * @fulfil {null}
      * @reject {Error}
      */
-    async _subscribeKafka(routingKey, callback = null, opts = {}) {
+    async _subscribeKafka(routingKey, callback = null, opts = {})
+    {
         const topic = KafkaHelper.getTopicFromRoutingKey(routingKey); // Convert routingKey to kafka topic
         this.logger.info(this.klassName, `#_subscribeKafka: Converted routing key ${routingKey} to topic ${topic}`);
+
+        opts.subject = routingKey; // Add the routingKey as subject to opts for rabbitmq backwards compatibillity.
+
         return this.kafkaClient.subscribe(topic, callback, opts);
     }
 
