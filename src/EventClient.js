@@ -137,7 +137,7 @@ class EventClient {
      *
      * @async
      * @function publish
-     * @param {string} routingKey - Full name of a topic.
+     * @param {string} routingKey - Full name of a topic. For kafka this will be relabeled as 'subject'.
      * @param {object} message - Payload to be sent to a receiver.
      * @param {object} context - Optional context containing meta data for the receiver of an event.
      * @param {EmitOpts} opts - Additional options to be set for emmiting an event.
@@ -223,11 +223,13 @@ class EventClient {
     {
         const hasWildcard = routingKey.indexOf('*') >= 0 || routingKey.indexOf('#') >= 0;
         if (hasWildcard)
-            throw new Error('Topic names are not allowed to contain wildcards.');
+            throw new Error('Routing keys are not allowed to contain wildcards.');
 
-        const topic = KafkaHelper.getTopicFromRoutingKey(routingKey); // Convert routingKey to kafka topic
-        this.logger.info(`${this.klassName}#_publishKafka: Converted routing key ${routingKey} to topic ${topic}`);
-        return this.kafkaClient.publish(topic, message, context, extend(true, opts, {routingKey}));
+        // TODO reenable here instead of doing the conversion in Kafka Consumer
+        // const topic = KafkaHelper.getTopicFromRoutingKey(routingKey); // Convert routingKey to kafka topic
+        // this.logger.info(`${this.klassName}#_publishKafka: Converted routing key ${routingKey} to topic ${topic}`);
+
+        return this.kafkaClient.publish(routingKey, message, context, opts);
     }
 
     /**
@@ -248,11 +250,10 @@ class EventClient {
      */
     async _subscribeKafka(routingKey, callback = null, opts = {})
     {
-        const topic = KafkaHelper.getTopicFromRoutingKey(routingKey); // Convert routingKey to kafka topic
-        this.logger.info(this.klassName, `#_subscribeKafka: Converted routing key ${routingKey} to topic ${topic}`);
-
+        // const topic = KafkaHelper.getTopicFromRoutingKey(routingKey); // Convert routingKey to kafka topic
         opts.subject = routingKey; // Add the routingKey as subject to opts for rabbitmq backwards compatibillity.
 
+        const topic = routingKey;
         return this.kafkaClient.subscribe(topic, callback, opts);
     }
 
@@ -264,7 +265,8 @@ class EventClient {
      * @return {Promise}
      */
     async _unsubscribeKafka(routingKey) {
-        const topic = KafkaHelper.getTopicFromRoutingKey(routingKey); // Convert routingKey to kafka topic
+        // const topic = KafkaHelper.getTopicFromRoutingKey(routingKey); // Convert routingKey to kafka topic
+        const topic = routingKey;
         this.logger.info(this.klassName, `#_unsubscribeKafka: Converted routing key ${routingKey} to topic ${topic}`);
         return this.kafkaClient.unsubscribe(topic);
     }

@@ -7,6 +7,8 @@ const Logger = require('ocbesbn-logger');
 const Consumer = require('./Consumer');
 const Producer = require('./Producer');
 
+const KafkaHelper = require('./KafkaHelper');
+
 /**
  * Class for simplifying access to kafka brokers. Each instance of this class
  * is capable of receiving and emitting events.
@@ -42,7 +44,9 @@ class KafkaClient
     get klassName() { return this.constructor.name || 'KafkaClient'; }
 
     get logger() {
-        if (!this._logger) { this._logger = new Logger(); }
+        if (!this._logger)
+            this._logger = new Logger();
+
         return this._logger;
     }
 
@@ -111,9 +115,8 @@ class KafkaClient
     {
         this.config.context = context;
 
-        if (this.producer) {
+        if (this.producer)
             this.producer.context = context;
-        };
     }
 
     /**
@@ -157,10 +160,12 @@ class KafkaClient
     {
         this.logger.info(this.klassName, '#init: Initialisation of Kafka event-client instance called.');
 
-        await this._initConsumer();
-        await this._initProducer();
+        const result = await Promise.all([
+            this._initConsumer(),
+            this._initProducer()
+        ]);
 
-        return true;
+        return result;
     }
 
     /**
@@ -172,16 +177,26 @@ class KafkaClient
      * and will extend a possibly existing global context defined by the config object passed
      * to the constructor (see {@link KafkaClient.DefaultConfig}).
      *
-     * @param {string} topic - Full name of a topic.
+     * @param {string} subject - Full subject of the message. Topic will be extracted from this and subject will be added to the message header.
      * @param {object} message - Payload to be sent to a receiver.
      * @param {object} context - Optional context containing meta data for the receiver of an event.
      * @param {EmitOpts} opts - Additional options to be set for emmiting an event.
      * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to null if the subscription succeeded. Otherwise the promise gets rejected with an error.
-     * @throws {Error}
+     * @fulfil {
+     * @reject {Error}
      */
-    async publish(topic, message, context = null, opts = {})
+    async publish(subject, message, context = null, opts = {})
     {
-        if (!this._producer) { await this._initProducer(); }
+        const topic = KafkaHelper.getTopicFromSubjectForPublish(subject);
+        return this._publishToTopic(topic, subject, message, context, opts);
+    }
+
+    async _publishToTopic(topic, subject, message, context = null, opts = {})
+    {
+        if (!this._producer)
+            await this._initProducer();
+
+        opts.subject = subject;
 
         return this._producer.publish(topic, message,  context, opts);
     }
@@ -192,16 +207,17 @@ class KafkaClient
      *
      * @async
      * @function subscribe
-     * @param {string} topic - Full name of a topic or a pattern.
+     * @param {string|RegExp} subject - Full name of a subject or a pattern. The kafka topic will be parsed from this.
      * @param {function} callback - Optional function to be called when a message for a topic or a pattern arrives.
      * @param {SubscribeOpts} opts - Additional options to set for the subscription.
      * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to null if the subscription succeeded. Otherwise the promise gets rejected with an error.
      */
-    async subscribe(topic, callback = null, opts = { })
+    async subscribe(subject, callback = null, opts = {})
     {
-        if (!this._consumer) { await this._initConsumer(); }
+        if (!this._consumer)
+            await this._initConsumer();
 
-        return this.consumer.subscribe(topic, callback, opts);
+        return this.consumer.subscribe(subject, callback, opts);
     }
 
     /**
@@ -344,6 +360,7 @@ class KafkaClient
 
             if (headers.retryCount && headers.retryCount >= 5) {
                 // Send to DLQ after 5 retries
+                // FIXME adding __dlq does not work with wildcard subscriptions
                 const dlq = `${parsedMessage.properties.routingKey}__dlq`;
                 this.logger.info(`${this.klassName}#_onConsumerRequeue: Moving msg to DLQ.`, dlq);
 

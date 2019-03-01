@@ -1,9 +1,8 @@
-const EventEmitter = require('events');
-const Logger = require('ocbesbn-logger');
-const {NConsumer} = require('sinek');
+const EventEmitter    = require('events');
+const Logger          = require('ocbesbn-logger');
+const {NConsumer}     = require('sinek');
 const {ConsumerError} = require('./err/');
-
-const subscribedTopics = require('./TopicSubscription');
+const KafkaHelper     = require('./KafkaHelper');
 
 /** Consumer class - interface to the sinek/Consumer implementation. */
 class Consumer extends EventEmitter
@@ -18,7 +17,22 @@ class Consumer extends EventEmitter
         this._logger           = config.logger || new Logger();
         this._consumer         = null;
         this._analyticsReady   = false;
-        this._subscribedTopics = new Map(); // TODO Maybe this can use the topics property of the NConsumer?
+
+        /**
+         * Subject registry is a dict of kafka topic subscriptions on the first level
+         * and subjects that may can be received on this topic on the second level. Subjects
+         * also store the application callback, eg:
+         *
+         * {
+         *   'service.domain': {
+         *     '^service\.domain\.*\.sent': *fnPtr
+         *   },
+         *   ...
+         * }
+         *
+         * @member {Map} _subjectRegistry
+         */
+        this._subjectRegistry  = new Map();
     }
 
     /** *** PUBLIC *** */
@@ -27,7 +41,9 @@ class Consumer extends EventEmitter
     get klassName() { return this.constructor.name || 'Consumer'; }
 
     get logger() {
-        if (!this._logger) { this._logger = new Logger(); }
+        if (!this._logger)
+            this._logger = new Logger();
+
         return this._logger;
     }
 
@@ -42,13 +58,11 @@ class Consumer extends EventEmitter
      */
     async checkHealth()
     {
-        if (!this._consumer) {
+        if (!this._consumer)
             throw new ConsumerError('Initialize consumer before accessing health information.', 'ENOTINITIALIZED');
-        }
 
-        if (typeof this._consumer.checkHealth !== 'function') {
+        if (typeof this._consumer.checkHealth !== 'function')
             throw new ConsumerError('Not supported.', 'ENOTSUPPORTED');
-        }
 
         return this._consumer.checkHealth();
     }
@@ -81,12 +95,8 @@ class Consumer extends EventEmitter
         let ok = false;
 
         /** Delete all topics from the global topics registry */
-        for (const topic of this._subscribedTopics.keys()) {
-            subscribedTopics.delete(topic);
-        }
-
-        /** Empty local subscriptions registry */
-        this._subscribedTopics = new Map();
+        for (const topic of this._subjectRegistry.keys())
+            this._subjectRegistry.delete(topic);
 
         try {
             if (this._consumer) {
@@ -112,45 +122,69 @@ class Consumer extends EventEmitter
      * @returns {boolean} Returns true if the *topic* is already subscribed; otherwise false.
      * @throws {Error}
      */
-    hasSubscription(topic)
+    hasSubscription(subject)
     {
-        if (!topic || typeof topic !== 'string' || topic === '') {
-            throw new Error('Invalid argument topic given.');
-        }
+        const topicSubscription = (KafkaHelper.getTopicFromRoutingKey(subject)).source;
+        const convertedSubject = (KafkaHelper.convertRabbitWildcard(subject)).source;
 
-        return this._subscribedTopics.has(topic);
+        return this._subjectRegistry.has(topicSubscription) && this._subjectRegistry.get(topicSubscription).has(convertedSubject);
     }
 
     /**
      * Subscribe to a kafka topic.
      *
-     * @todo Add config flag to consume only messages that arrive AFTER the consumer group was created.
+     * TODO Add config flag to consume only messages that arrive AFTER the consumer group was created.
      *
      * @async
      * @function subscribe
-     * @param {string} topic
+     * @param {string} subject
      * @param {function} callback
+     * @param {object} opts
+     * @param {string} opts.subject - The original routingKey. Used to register locally for later pattern matching on incoming messages.
      * @returns {boolean}
      * @throws {ConsumerError}
      */
-    async subscribe(topic, callback = null)
+    async subscribe(subject, callback = null, opts = {})
     {
-        if (subscribedTopics.has(topic)) {
-            throw new ConsumerError(`The topic "${topic}" has already been subscribed.`, 'EDOUBLESUBSCRIPTION', 409);
-        }
+        const topicSubscription = (KafkaHelper.getTopicFromRoutingKey(subject)).source; // FIXME This should be done in EventClient not here, check that subject is a valid subscription but do not convert
+        const convertedSubject = (KafkaHelper.convertRabbitWildcard(subject)).source; // FIXME This should be done in EventClient not here, check that subject is a valid subscription but do not convert
 
-        let result = this._consumer.addSubscriptions([topic]);
 
-        if (result && Array.isArray(result) && result.includes(topic)) {
-            subscribedTopics.set(topic, callback);
-            this._subscribedTopics.set(topic, true);
+        if (this._subjectRegistry.has(topicSubscription) && this._subjectRegistry.has(topicSubscription)) {
+            const subjects = this._subjectRegistry.get(topicSubscription);
 
-            this.logger.info(`Consumer#subscribe: Successfully subscribed to topic ${topic}`);
+            if (subjects.has(convertedSubject)) {
+                // Double subject subscriptions are not allowed, otherwise unsubscribe will not work.
+                throw new ConsumerError(`The subject "${subject}" on topic "${topicSubscription}" has already been subscribed.`, 'EDOUBLESUBSCRIPTION', 409);
+            } else {
+                // Already subscribed to topic, just add subject to registry
+                subjects.set(convertedSubject, callback);
+            }
         } else {
-            const errMsg = `Failed to subscribe to topic ${topic}.`;
-            this.logger.error('Consumer#subscribe: ', errMsg);
-            throw new ConsumerError(errMsg, 'ESUBSCRIBEFAILED', 409);
+            // Consume topic and register subject
+
+            let result;
+
+            try {
+                result = this._consumer.addSubscriptions([topicSubscription]);
+            } catch (e) {
+                throw new ConsumerError(`Failed to subscribe to subject ${subject}`);
+            }
+
+            if (result && Array.isArray(result) && result.includes(topicSubscription)) {
+                const subjects = new Map();
+                subjects.set(convertedSubject, callback);
+
+                this._subjectRegistry.set(topicSubscription, subjects);
+
+                this.logger.info(`Consumer#subscribe: Successfully subscribed to topic ${topicSubscription}`);
+            } else {
+                const errMsg = `Failed to subscribe to topic ${topicSubscription}.`;
+                this.logger.error('Consumer#subscribe: ', errMsg);
+                throw new ConsumerError(errMsg, 'ESUBSCRIBEFAILED', 409);
+            }
         }
+
 
         return true;
     }
@@ -160,41 +194,54 @@ class Consumer extends EventEmitter
      *
      * @async
      * @function unsubscribe
-     * @param {string} topic
+     * @param {string} subject - Subject to unsubscribe from
      * @returns {boolean} Indicates success.
      */
-    async unsubscribe(topic) {
-        if (!this._subscribedTopics.has(topic)) {
-            this.logger.error(`Consumer#unsubscribe: This instance is not subscribed to topic ${topic}`);
+    async unsubscribe(subject) {
+        const topicSubscription = (KafkaHelper.getTopicFromRoutingKey(subject)).source;
+        const convertedSubject = (KafkaHelper.convertRabbitWildcard(subject)).source;
+
+        if (!this._subjectRegistry.has(topicSubscription)) {
+            this.logger.error(`Consumer#unsubscribe: This instance is not subscribed to subject ${subject}`);
             return false;
         }
 
         if (!this._consumer || !this._consumer.consumer) {
-            this.logger.error('Consumer#unsubscribe: Consumer not setup.');
+            this.logger.error('Consumer#unsubscribe: Consumer not setup, call init() first.');
             return false;
         }
 
-        const consumerSubscriptionBefore = this._consumer.consumer.subscription();
+        const subjects = this._subjectRegistry.get(topicSubscription);
 
-        this._subscribedTopics.delete(topic);
+        if (!subjects.has(convertedSubject))
+            throw new Error(`This consumer is not subscribed to the subject ${subject}`);
+        else
+            subjects.delete(convertedSubject);
 
-        const changedSubscription = [...this._subscribedTopics.keys()];
+        if (subjects.size === 0) {
+            this.logger.info(`Consumer#unsubscribe: Subscription on topic ${topicSubscription} is empty. Remove topic subscription.`);
 
-        /** Workaround for bug in sinek */
-        if (changedSubscription && changedSubscription.length === 0) {
-            this._consumer.consumer.unsubscribe();
-        } else {
-            this._consumer.adjustSubscription(changedSubscription);
+            const consumerSubscriptionBefore = this._consumer.consumer.subscription();
+
+            const changedSubscription = [...this._subjectRegistry.keys()].filter((v) => v !== topicSubscription);
+
+            /** Workaround for bug in sinek */
+            if (changedSubscription && changedSubscription.length === 0)
+                this._consumer.consumer.unsubscribe();
+            else
+                this._consumer.adjustSubscription(changedSubscription);
+
+            const consumerSubscriptionAfter = this._consumer.consumer.subscription();
+
+            if (consumerSubscriptionAfter.length === 0 || consumerSubscriptionAfter.length === consumerSubscriptionBefore.length - 1) {
+                this._subjectRegistry.delete(topicSubscription);
+                return true;
+            } else {
+                return false;
+            }
         }
 
-        const consumerSubscriptionAfter = this._consumer.consumer.subscription();
-
-        if (consumerSubscriptionAfter.length === 0 || consumerSubscriptionAfter.length === consumerSubscriptionBefore.length - 1) {
-            subscribedTopics.delete(topic);
-            return true;
-        } else {
-            return false;
-        }
+        return true;
     }
 
     /** *** PRIVATE METHODS *** */
@@ -209,13 +256,13 @@ class Consumer extends EventEmitter
      * @param {object} config
      * @param {string} config.host - Kafka node to connect to. Uses internal service discovery to find other kafka nodes.
      * @param {string} config.port - Kafka port.
+     * @param {boolean} [useAsapReceiveMode=false] - Switch reveive mode (1:1 vs. asap)
      * @returns {boolean} true if successful or throws
      */
-    async _connect(config)
+    async _connect(config, useAsapReceiveMode = false)
     {
-        if (this._consumer) {
+        if (this._consumer)
             return this._doConnect();
-        };
 
         this._consumer = await this._createConsumer(config);
 
@@ -263,7 +310,10 @@ class Consumer extends EventEmitter
          *       needs to be executed to finish the message processing in the native consumer {@link node-sinek/NConsuer#consume:569}
          * - asap mode by passing no callback to .consume() - consumes messages as fast as possible
          */
-        this._consumer.consume(null, true, false, options);
+        if (useAsapReceiveMode)
+            this._consumer.consume(null, true, false, options);
+        else
+            this._consumer.consume(this._onConsumerMessage.bind(this), true, false);
 
         return true;
     }
@@ -321,7 +371,7 @@ class Consumer extends EventEmitter
                 'metadata.broker.list': `${config.host}:${config.port}`,
                 'group.id': this.config.consumerGroupId, // Default is serviceName
                 'client.id': 'event-client',
-                'enable.auto.commit': true,
+                // 'enable.auto.commit': true,
                 //'debug': 'all',
                 'event_cb': true
             },
@@ -381,41 +431,65 @@ class Consumer extends EventEmitter
      * @param {string} message.value.properties - Stringified JSON containing message headers maintained by KafkaClient
      * @param {string} message.value.content    - Stringified JSON containing the actual payload of the message. Needs to be deserialized with the parser given in the config from KafkaClient#constructor.
      */
-    _onConsumerMessage(message)
+    async _onConsumerMessage(message, doneCb)
     {
-        let payload, context, rabbitRoutingKey;
+        let payload, context, rabbitRoutingKey, messageSubject;
         try {
-            const {routingKey, content, headers} = this._prepareIncomingMessage(message);
+            const {routingKey, content, headers, subject} = this._prepareIncomingMessage(message);
             rabbitRoutingKey = routingKey;
             payload = content;
             context = headers;
+            messageSubject = subject;
         } catch (e) {
             this.logger.error(this.klassName, '#_onConsumerMessage: Failed to parse incoming message with exception.', message, e);
             return; // !!!
         }
 
-        for (const [t, cb] of subscribedTopics.entries())
+        for (const t of this._subjectRegistry.keys())
         {
             let requeMessage = false;
 
             if (message.topic.match(new RegExp(t)))
             {
-                try {
-                    const result = cb(payload, context, message.topic, rabbitRoutingKey);
-                    if (result !== true && !message.topic.endsWith('__dlq')) {
-                        this.logger.warn(this.klassName, '#_onConsumerMessage: Application callback returned a value other than true.');
-                        requeMessage = true;
+                const subjects = this._subjectRegistry.get(t);
+
+                for (const [subject, callback] of subjects) {
+
+                    if (messageSubject.match(new RegExp(subject)))
+                    {
+                        if (typeof callback !== 'function')
+                            // TODO Maybe not throw?
+                            throw new Error('Application callback is not a function.');
+
+                        // TODO Retry application callback with exponential backoff
+                        try {
+                            const result = await callback(payload, context, message.topic, rabbitRoutingKey);
+                            // FIXME adding __dlq does not work with wildcard subscriptions
+                            if (result !== true && !message.topic.endsWith('__dlq')) {
+                                this.logger.warn(this.klassName, '#_onConsumerMessage: Application callback returned a value other than true.');
+                                requeMessage = true;
+                            }
+                        } catch (e) {
+                            this.logger.error(this.klassName, '#_onConsumerMessage: Calling the registered callback for topic ', message.topic, ' failed with exception.', e);
+                            requeMessage = true;
+
+                            // TODO move message to DLQ
+                        }
+
+                        if (requeMessage) {
+                            console.log('FIXME dead letter queueing');
+                            // TODO
+                            // this.emit('requeue', message);
+                        }
                     }
-                } catch (e) {
-                    this.logger.error(this.klassName, '#_onConsumerMessage: Calling the registered callback for topic ', message.topic, ' failed with exception.', e);
-                    requeMessage = true;
                 }
 
-                if (requeMessage) {
-                    this.emit('requeue', message);
-                }
             }
         }
+
+        // Commit message and continue consuming in 1:1 receive mode.
+        if (typeof doneCb === 'function')
+            doneCb();
     }
 
     /**
@@ -465,6 +539,7 @@ class Consumer extends EventEmitter
 
         return {
             routingKey: messageProperties.routingKey,
+            subject: messageProperties.subject,
             content,
             headers
         };
@@ -481,7 +556,7 @@ class Consumer extends EventEmitter
         this._consumer.once('analytics', () => this._analyticsReady = true);
 
         this._consumer.on('error', this._onConsumerError.bind(this));
-        this._consumer.on('message', this._onConsumerMessage.bind(this));
+        // this._consumer.on('message', this._onConsumerMessage.bind(this));
         this._consumer.on('ready', this._onConsumerReady.bind(this)); // Not implemented?
     }
 

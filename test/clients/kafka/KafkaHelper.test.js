@@ -20,17 +20,17 @@ describe('KafkaHelper', () => {
         });
 
         it('Should work for one element routingKeys', () => {
-            assert.equal(KafkaHelper.getTopicFromRoutingKey('alpha'), 'alpha');
+            assert.equal(KafkaHelper.getTopicFromRoutingKey('alpha').source, '^alpha');
         });
 
         it('Should work for two element routingKeys', () => {
-            assert.equal(KafkaHelper.getTopicFromRoutingKey('alpha.beta'), 'alpha.beta');
-            assert.equal(KafkaHelper.getTopicFromRoutingKey('alpha.beta'), 'alpha.beta');
+            assert.equal(KafkaHelper.getTopicFromRoutingKey('alpha.beta').source, '^alpha\\.beta');
+            assert.equal(KafkaHelper.getTopicFromRoutingKey('alpha.beta').source, '^alpha\\.beta');
         });
 
         it('Should work for 3+ element routingKeys', () => {
-            assert.equal(KafkaHelper.getTopicFromRoutingKey('alpha.beta.gamma'), 'alpha.beta');
-            assert.equal(KafkaHelper.getTopicFromRoutingKey('alpha.beta.gamma.delta'), 'alpha.beta');
+            assert.equal(KafkaHelper.getTopicFromRoutingKey('alpha.beta.gamma').source, '^alpha\\.beta');
+            assert.equal(KafkaHelper.getTopicFromRoutingKey('alpha.beta.gamma.delta').source, '^alpha\\.beta');
         });
 
         it('Should work for 3+ element routingKeys with # pattern', () => {
@@ -69,6 +69,43 @@ describe('KafkaHelper', () => {
         });
     });
 
+    describe('#getTopicFromSubjectForPublish', () => {
+
+        const errSubjects = [
+            '',
+            'alpha',
+            'alpha.beta.*',
+            'alpha.beta.gam#'
+        ];
+
+        const okSubjects = {
+            'alpha.beta': 'alpha.beta',
+            'alpha.beta.gamma' : 'alpha.beta',
+            'alpha.beta.gamma.delta' : 'alpha.beta',
+        };
+
+        it('Should not accept invalid subjects', async () => {
+            let failCount = 0;
+
+            for (const subject of errSubjects) {
+
+                try {
+                    KafkaHelper.getTopicFromSubjectForPublish(subject);
+                } catch (e) {
+                    failCount++;
+                }
+            }
+
+            assert.strictEqual(failCount, 4);
+        });
+
+        it('Should accept subjects of any level.', () => {
+            for (const [subject, topic] of Object.entries(okSubjects))
+                assert.strictEqual(KafkaHelper.getTopicFromSubjectForPublish(subject), topic);
+        });
+
+    });
+
     describe('#convertRabbitWildcard', () => {
         const routingKey             = 'alpha.beta.gamma.delta';
         const routingKeyWithPattern1 = 'alpha.*.gamma.*';
@@ -79,9 +116,9 @@ describe('KafkaHelper', () => {
             assert(KafkaHelper.hasOwnProperty('convertRabbitWildcard'));
         });
 
-        it('Should not change routingKeys that do not contain patterns.', () => {
+        it('Should always convert to regex even if routingKey does not contain a pattern so we dont subscribe to DLQs.', () => {
             const result = KafkaHelper.convertRabbitWildcard(routingKey);
-            assert.strictEqual(result, routingKey);
+            assert.strictEqual(result.source, '^alpha\\.beta\\.gamma\\.delta');
         });
 
         it('Should return an instance of RegExp when routingKey contains a pattern.', () => {

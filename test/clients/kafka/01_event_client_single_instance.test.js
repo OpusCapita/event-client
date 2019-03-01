@@ -11,9 +11,8 @@ const Promise = require('bluebird');
 const configService = require('@opuscapita/config');
 const Logger        = require('ocbesbn-logger');
 
-const EventClient      = require('../../../src/clients/kafka/');
+const KafkaClient      = require('../../../src/clients/kafka/');
 const {ConsumerError}  = require('../../../src/clients/kafka/err/');
-const subscribedTopics = require('../../../src/clients/kafka/TopicSubscription');
 
 const consulOverride = {
     host:  'kafka1',
@@ -21,7 +20,7 @@ const consulOverride = {
 };
 
 const eventClientFactory = (config) => {
-    return new EventClient(extend(true, {
+    return new KafkaClient(extend(true, {
         serviceName: 'event-client-2000',
         consumerGroupId: 'test',
         consulOverride,
@@ -31,7 +30,7 @@ const eventClientFactory = (config) => {
 
 const noopFn = () => {};
 
-describe('EventClient single instance tests', () => {
+describe('KafkaClient single instance tests', () => {
 
     before(async () =>
     {
@@ -82,11 +81,11 @@ describe('EventClient single instance tests', () => {
 
         it('Should subscribe to a topic based on a pattern.', async () => {
             const result = await client.subscribe('^pattern.*.com', () => {});
-
+            // console.log('--->', result);
             assert.strictEqual(result, true);
         });
 
-        it('Should fail on double subscription to the same topic.', async () => {
+        it('Should fail on double subscription to the same topic w/o pattern.', async () => {
             let ok = false;
 
             try {
@@ -99,28 +98,50 @@ describe('EventClient single instance tests', () => {
             assert.equal(ok, true);
         });
 
+        it('Should fail on double subscription to the same topic w/ pattern.', async () => {
+            let ok = false;
+
+            try {
+                await client.subscribe('^test.double\\S*', () => {});
+                await client.subscribe('^test.double\\S*', () => {});
+            } catch (e) {
+                ok = e instanceof ConsumerError && e.errno === 409;
+            }
+
+            assert.equal(ok, true);
+        });
+
         it('Should indicate failure on trying to unsubscribe from a not subscribed topic.', async () => {
             const result = await client.unsubscribe('test.unsubscribe.notexist');
             assert.strictEqual(result, false);
         });
 
-        it('Should unsubscribe from a topic.', async () => {
+        it('Should subscribe to multiple subjects on the same topic.', async () => {
+            await client.subscribe('test.subscribe.test1', () => true);
+            await client.subscribe('test.subscribe.test2', () => true);
+
+            assert(client.consumer._subjectRegistry.get('^test\\.subscribe').size === 2);
+
+            await client.dispose();
+        });
+
+        it('Should unsubscribe from a subject.', async () => {
             await client.subscribe('test.unsubscribe.test1', () => true);
             await client.subscribe('test.unsubscribe.test2', () => true);
-            assert(client.consumer._subscribedTopics.size === 2);
 
             await client.unsubscribe('test.unsubscribe.test1');
-            assert(client.consumer._subscribedTopics.size === 1);
+
+            assert(client.consumer._subjectRegistry.get('^test\\.unsubscribe').size === 1);
 
             await client.dispose();
         });
 
         it('Should successfully remove all transactions (sinek bug workaround test).', async () => {
             await client.subscribe('test.unsubscribe.all', () => true);
-            assert(client.consumer._subscribedTopics.size === 1);
+            assert(client.consumer._subjectRegistry.get('^test\\.unsubscribe').size === 1);
 
             await client.unsubscribe('test.unsubscribe.all');
-            assert(client.consumer._subscribedTopics.size === 0);
+            assert.strictEqual(client.consumer._subjectRegistry.has('^test\\.unsubscribe'), false);
         });
 
     });
@@ -157,11 +178,11 @@ describe('EventClient single instance tests', () => {
             await client.publish('test.producing', msg);
 
             let ok = await retry(() => {
-                if (receivedMessages.includes(msg)) {
+                if (receivedMessages.includes(msg))
                     return Promise.resolve(true);
-                } else {
+                else
                     return Promise.reject(new Error('Message not yet received'));
-                }
+
             }, {'max_tries': 80}); // Long wait interval, kafka rebalancing takes some time
 
             assert(ok);
@@ -192,19 +213,17 @@ describe('EventClient single instance tests', () => {
     describe('Methods', () => {
 
         describe('#dispose', () => {
-            it('Should remove all subscriptions from the global subscription registry.', async () => {
-                if (subscribedTopics.size > 0) { console.log('TOCHECK: ', subscribedTopics.keys()); }
-                subscribedTopics.clear(); // Clean up if some disposing in previous tests did not work.
+            it('Should remove all subscriptions from the client\'s subject registry.', async () => {
 
                 const client = eventClientFactory();
                 await client.subscribe('test.disposetest', noopFn);
 
-                assert(subscribedTopics.size >= 1);
+                assert(client.consumer._subjectRegistry.size >= 1);
 
                 let r = await client.dispose();
 
                 assert.strictEqual(r, true);
-                assert.strictEqual(subscribedTopics.size, 0);
+                assert.strictEqual(client.consumer._subjectRegistry.size, 0);
             });
         });
 
@@ -219,9 +238,9 @@ describe('EventClient single instance tests', () => {
             });
 
             it('Should indicate if a topic was subscribed.', async () => {
-                await client.subscribe('test.hassubscription', noopFn);
+                await client.subscribe('test.hassubscription.sub1', noopFn);
 
-                assert.equal(client.hasSubscription('test.hassubscription'), true);
+                assert.equal(client.hasSubscription('test.hassubscription.sub1'), true);
                 assert.equal(client.hasSubscription('test.baz'), false);
                 assert.throws(() => client.hasSubscription([]));
             });

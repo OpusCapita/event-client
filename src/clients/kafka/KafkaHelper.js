@@ -2,6 +2,35 @@ module.exports = class KafkaHelper {
     constructor() {}
 
     /**
+     * Convert a given subject (rabbitmq routing key) to a
+     * kafka topic for publishing. Validate subject and shorten
+     * it to the BNP topic schema.
+     *
+     * @function getTopicFromSubjectForPublish
+     * @param {string} subject - The subject that is converted to a Kafka topic.
+     * @return {string} Kafka topic according to BNP naming schema.
+     * @throws {Error}
+     */
+    static getTopicFromSubjectForPublish(subject)
+    {
+        if (typeof subject !== 'string')
+            throw new TypeError('String expected for subject.');
+
+        if (!subject.length)
+            throw new Error('Empty routing key not supported.');
+
+        if (subject.indexOf('*') >= 0 || subject.indexOf('#') >= 0)
+            throw new Error('Subjects can not contain wildcards.');
+
+        const parts = subject.split('.');
+
+        if (parts.length <= 1)
+            throw new Error('Subject need to contain at least to levels, eg. servicename.domain');
+
+        return `${parts[0]}.${parts[1]}`;
+    }
+
+    /**
      * Takes a RabbitMQ routingKey/topic and returns the kafka topic.
      *
      * Convention is to use the first two parts of a RabbitMQ routingKey
@@ -13,20 +42,25 @@ module.exports = class KafkaHelper {
      * @returns {string} The kafka topic matching the routing key
      * @throws {error}
      */
-    static getTopicFromRoutingKey(routingKey = '') {
-        if (typeof routingKey !== 'string') { throw new TypeError('String expected for param routingKey.'); }
-        if (!routingKey.length) { throw new Error('Empty routing key not supported.'); }
+    static getTopicFromRoutingKey(routingKey = '', convertWildcards = true) {
+        if (typeof routingKey !== 'string')
+            throw new TypeError('String expected for param routingKey.');
 
-        let result;
+        if (!routingKey.length)
+            throw new Error('Empty routing key not supported.');
+
         const parts = routingKey.split('.');
 
+        let topic;
         if (parts.length === 1 || parts.length === 2) {
-            result = routingKey;
+            // Use routingKey if it only cotains two levels
+            topic = routingKey;
         } else {
-            result = `${parts[0]}.${parts[1]}`;
+            // Use only first two levels of routing key
+            topic = `${parts[0]}.${parts[1]}`;
         }
 
-        result = KafkaHelper.convertRabbitWildcard(result);
+        const result = convertWildcards ? KafkaHelper.convertRabbitWildcard(topic) : topic;
 
         return result;
     }
@@ -39,26 +73,43 @@ module.exports = class KafkaHelper {
      *   * (star) can substitute for exactly one word
      *   # (hash) can substitute for zero or more words
      *
+     * Attention: The converted RegExp is handled down to librdkafka that does only support
+     *            POSIX regex. So no lookahead for example.
+     *
      * @function convertRabbitWildcard
-     * @param {string} routingKey - The RabbitMQ routingKey
-     * @returns {string} The kafka topic matching the routing key
+     * @param {string|RegExp} routingKey - The RabbitMQ routingKey or a regular expression
+     * @return {string} The kafka topic matching the routing key
+     * @throw {TypeError}
      */
     static convertRabbitWildcard(routingKey) {
-        const hasWildcard = routingKey.indexOf('*') >= 0 || routingKey.indexOf('#') >= 0;
-
         let result;
 
-        if (hasWildcard) {
-            result = routingKey.replace(/\./g, '\\.');
-            result = result.replace(/\*/g, '\\w*\\b');
-            result = result.replace(/\#/g, '\\S*');
-            result = '^' + result;
-            result = new RegExp(result);
-        } else {
+        if (typeof routingKey === 'string') {
+            if (routingKey[0] === '^')
+                result = new RegExp(routingKey);
+            else {
+                result = routingKey.replace(/\./g, '\\.');
+                result = result.replace(/\*/g, '\\w*\\b');
+                result = result.replace(/\#/g, '\\S*');
+
+                result = new RegExp('^' + result); // Always convert to regex so we do not subscribe to DLQs (topics starting with dlq__)
+            }
+        } else if (routingKey instanceof RegExp)
             result = routingKey;
-        }
+        else
+            throw new TypeError('The provided routingKey can not be converted to RegExp');
 
         return result;
+    }
+
+    /**
+     * Escape a regular string for further use in `new RegExp(...)`
+     *
+     * @param {string} string
+     * @return {string}
+     */
+    static escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
     }
 
 };

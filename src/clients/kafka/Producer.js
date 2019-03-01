@@ -120,8 +120,11 @@ class Producer extends EventEmitter
             timestamp: new Date().toString()
         });
 
+        // topic contains the converted routing key, opts.subject is the original
         message.properties = {
-            routingKey: opts.routingKey || topic, // Used for backwards compatibillity with Event-Client v2x (rabbitmq)
+            topic,
+            subject: opts.subject || topic,
+            routingKey: opts.subject || topic, // Used for backwards compatibillity with Event-Client v2x (rabbitmq)
             contentType: this.config.serializerContentType,
             contentEncoding: 'utf-8',
             correlationId: context && context.correlationId,
@@ -133,7 +136,7 @@ class Producer extends EventEmitter
 
         message.content = this.config.serializer(content);
 
-        return this._publish(message);
+        return this._publish(topic, message);
     }
 
     /** *** PRIVATE METHODS *** */
@@ -263,12 +266,12 @@ class Producer extends EventEmitter
      * @function _publish
      * @param {object} message - @see publish
      */
-    _publish(message) {
+    _publish(topic, message) {
         let result = null;
 
         try {
             const payload = Buffer.from(JSON.stringify(message));
-            result = this._producer.send(message.properties.routingKey, payload, null, null, message.properties.partitionKey, message.properties.appId);
+            result = this._producer.send(topic, payload, null, null, message.properties.partitionKey, message.properties.appId);
         } catch (e) {
             this.logger && this.logger.error('Producer#publish: Failed to send message with exception.', e, message);
             throw e;
@@ -284,7 +287,6 @@ class Producer extends EventEmitter
     _registerProducerListeners()
     {
         this._producer.once('analytics', () => this._analyticsReady = true);
-
         this._producer.on('error', this._onProducerError.bind(this));
     }
 }

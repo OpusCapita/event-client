@@ -1,4 +1,3 @@
-const extend = require('extend');
 const configService = require('@opuscapita/config');
 const Logger = require('ocbesbn-logger');
 
@@ -26,45 +25,75 @@ function main() {
         };
 
         const cs1 = new EventClient(config);
-        const cs2 = new EventClient(extend(true, config, {consumerGroupId: 'beta'}));
-
         await cs1.init();
-        await cs2.init();
-
         global.ec1 = cs1;
 
-        await cs1.subscribe('event-client.#', (message, headers, topic, routingKey) => {
+        let cnt = 0;
+        global.sendFn = async () => {
+            console.log('Publishing #', cnt);
+            const result = await cs1.publish('event-client.debug.test1', `${Date.now()} - ${cnt++}`, {'custom': 'context'});
+            console.log(result);
+            return true;
+        };
+
+        const subRes1 = await cs1.subscribe('event-client.debug.test1', (message, headers, topic, routingKey) => {
+            console.log('CS1: Received message: ', message, ' | ', headers, ' | RoutingKey: ', routingKey);
+            return true;
+        }).catch(console.error);
+        const subRes2 = await cs1.subscribe('event-client.debug.test2', (message, headers, topic, routingKey) => {
             console.log('CS1: Received message: ', message, ' | ', headers, ' | RoutingKey: ', routingKey);
             return true;
         }).catch(console.error);
 
-        await cs2.subscribe('event-client.#', (message, headers) => {
-            console.log('CS2: Received message: ', message, '-', headers);
-        }).catch(console.error);
+        // await cs1.subscribe('event-client.debug#', (message, headers, topic, routingKey) => {
+        //     console.log('CS1: Received message: ', message, ' | ', headers, ' | RoutingKey: ', routingKey);
+        //     return true;
+        // }).catch(console.error);
 
+        // await cs1.subscribe('event-client.*.*', (message, headers, topic, routingKey) => {
+        //     console.log('CS1: Received message with two wildcards: ', message, ' | ', headers, ' | RoutingKey: ', routingKey);
+        //     return true;
+        // }).catch(console.error);
 
-        // // await cs1.subscribe('beta', (message) => {
-        // //     console.log('Main: Received message: ', message);
-        // // });
+        // await cs1.subscribe('xxx.event-client.*.*', (message, headers, topic, routingKey) => {
+        //     console.log('CS1: Received message with two wildcards: ', message, ' | ', headers, ' | RoutingKey: ', routingKey);
+        //     return true;
+        // }).catch(console.error);
 
-        let cnt = 0;
-        setInterval(() => {
-            console.log('Publishing #', cnt);
-            cs1.publish('event-client.debug.subone', `${Date.now()} - ${cnt++}`, {'custom': 'context'});
-        }, 6000);
+        // await cs1.subscribe('beta', (message) => {
+        //     console.log('Main: Received message: ', message);
+        // });
 
-        // setInterval(async () => {
-        //     cs1.checkHealth()
-        //         .then(result => console.log('CS1 Health: ', result))
-        //         .catch(e => console.log('Failed to check health with exception: ', e.message));
-        //     cs2.checkHealth()
-        //         .then(result => console.log('CS2 Health: ', result))
-        //         .catch(e => console.log('Failed to check health with exception: ', e.message));
-        // }, 5000);
+        // const cs2 = new EventClient(extend(true, config, {consumerGroupId: 'beta'}));
+        // await cs2.init();
+
+        // await cs2.subscribe('event-client.#', (message, headers) => {
+        //     console.log('CS2: Received message: ', message, '-', headers);
+        // }).catch(console.error);
+
 
         // setInterval(() => {
-        //     cs1.publish('beta', `${Date.now()} - ${cnt++}`);
-        // }, 60000);
+        //     console.log('Publishing #', cnt);
+        //     cs1.publish('event-client.debug.subone', `${Date.now()} - ${cnt++}`, {'custom': 'context'});
+        // }, 6000);
+
+
+        setInterval(async () => {
+            // try {
+            //     cs1.checkHealth()
+            //         .then(result => console.log('CS1 Health: ', result))
+            //         .catch(e => console.log('Failed to check health with exception: ', e.message));
+            // } catch (e) {
+            //     debugger;
+            // }
+            // cs2.checkHealth()
+            //     .then(result => console.log('CS2 Health: ', result))
+            //     .catch(e => console.log('Failed to check health with exception: ', e.message));
+        }, 5000);
+
+        setInterval(() => {
+            console.log('keepalive');
+        }, 60000);
 
         resolve(true);
     });
