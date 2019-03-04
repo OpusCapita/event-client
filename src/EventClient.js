@@ -47,7 +47,7 @@ class EventClient {
         return new Proxy(self, {
             get(target, key) {
                 if (!Reflect.has(self, key)) {
-                    self.logger.warn(self.klassName, `: Getter for undefined property ${key} called.`);
+                    self.logger.warn(`${self.klassName}: Getter for undefined property ${key} called.`);
                 } else {
                     return target[key];
                 }
@@ -97,10 +97,14 @@ class EventClient {
      */
     async dispose()
     {
-        return Promise.all([
+        const result = await Promise.all([
             this.kafkaClient.dispose(),
             this.amqpClient.dispose()
         ]);
+
+        this.logger.info(`${this.klassName}#dispose: Return client disposes with result: `, result);
+
+        return result;
     }
 
     /**
@@ -112,10 +116,9 @@ class EventClient {
      */
     async emit(...args)
     {
-        this.logger.warn(this.klassName, '#emit: Deprecation warning. Using old interface to publish messages. Use publish().');
+        this.logger.warn(`${this.klassName}#emit: Deprecation warning. Using old interface to publish messages. Use publish().`);
         return this.publish(...args);
     }
-
 
     /**
      * Delegates to init() of client implementations.

@@ -24,6 +24,8 @@ const eventClientFactory = (config) => {
     }, config));
 };
 
+// const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
+
 describe('EventClient', () => {
     before(async () => {
         return await configService.init({logger : Logger.DummyLogger});
@@ -83,16 +85,21 @@ describe('EventClient', () => {
         });
     });
 
-    describe('#publish and #subscribe', () => {
+    describe.only('#publish and #subscribe', () => {
         let client;
 
-        beforeEach(() => client = eventClientFactory({
-            consumerGroupId: `test-${Date.now()}` // Consumer group id randomization fixes problem with timeouts on rebalancing on kafka
-        }));
+        beforeEach(async () => {
+            client = eventClientFactory({
+                consumerGroupId: `test-${Date.now()}` // Consumer group id randomization fixes problem with timeouts on rebalancing on kafka
+            });
+
+            return await client.init();
+        });
 
         afterEach(async () => {
             client && await client.dispose();
             client = null;
+            return true;
         });
 
         it('Should publish messages to a topic.', async () => {
@@ -106,11 +113,10 @@ describe('EventClient', () => {
             await client.publish('event-client.test.producing', msg);
 
             let ok = await retry(() => {
-                if (receivedMessages.includes(msg)) {
+                if (receivedMessages.includes(msg))
                     return Promise.resolve(true);
-                } else {
+                else
                     return Promise.reject(new Error('Message not yet received'));
-                }
             }, {'max_tries': 80}); // Long wait interval, kafka rebalancing takes some time
 
             assert(ok);
@@ -118,10 +124,8 @@ describe('EventClient', () => {
     });
 
     describe('#unsubscribe', () => {
-
         it('Should unsubscribe from a topic without pattern');
         it('Should unsubscribe from a topic wit pattern');
-
     });
 
 });

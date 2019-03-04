@@ -85,6 +85,8 @@ class Consumer extends EventEmitter
     /**
      * Dispose method that frees all known resources.
      *
+     * FIXME Race condition in sinek's NConsumer#close method (https://github.com/nodefluent/node-sinek/issues/101)
+     *
      * @public
      * @async
      * @function dispose
@@ -100,8 +102,8 @@ class Consumer extends EventEmitter
 
         try {
             if (this._consumer) {
-                await this._consumer.close(true);
-                this._consumer = null;
+                this._consumer.close(true);
+                // this._consumer = null;
             }
 
             ok = true;
@@ -513,24 +515,20 @@ class Consumer extends EventEmitter
      * @throws {ConsumerError|ParserError}
      */
     _prepareIncomingMessage(message) {
-        if (!message || !message.topic) {
+        if (!message || !message.topic)
             throw new ConsumerError('Invalid message received.', 'EMSGINVALID');
-        }
 
-        if (!message.value) {
+        if (!message.value)
             throw new ConsumerError('Message has no value.', 'EMSGEMPTY');
-        }
 
         let parsedMessageValue =  JSON.parse(message.value); // This may throw a parser exception.
 
-        if (!parsedMessageValue || !parsedMessageValue.properties) {
+        if (!parsedMessageValue || !parsedMessageValue.properties)
             throw new ConsumerError('Message without properties recveived.', 'EMSGINVALID');
-        }
 
         let messageProperties = parsedMessageValue.properties;
-        if (messageProperties.contentType !== this.config.serializerContentType) {
+        if (messageProperties.contentType !== this.config.serializerContentType)
             throw new ConsumerError('Message properties has no contentType.', 'EMSGINVALID');
-        }
 
         let headers = messageProperties.headers || {};
         headers.topic = message.topic;
@@ -546,7 +544,7 @@ class Consumer extends EventEmitter
     }
 
     /**
-     * Registers listeners to the sinke consumer.
+     * Registers listeners to the sinek consumer.
      *
      * @private
      * @function _registerConsumerListeners
@@ -556,8 +554,8 @@ class Consumer extends EventEmitter
         this._consumer.once('analytics', () => this._analyticsReady = true);
 
         this._consumer.on('error', this._onConsumerError.bind(this));
-        // this._consumer.on('message', this._onConsumerMessage.bind(this));
         this._consumer.on('ready', this._onConsumerReady.bind(this)); // Not implemented?
+        // this._consumer.on('message', this._onConsumerMessage.bind(this)); // FIXME make receive mode configurable
     }
 
     /**

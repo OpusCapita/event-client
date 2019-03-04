@@ -122,20 +122,25 @@ class KafkaClient
     /**
      * Closes all consumers and producers.
      *
-     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to true or rejecting with an error.
+     * @returns {Promise}
+     * @fulfil {boolean} Indicates if all called dispose methods returned true
      */
     async dispose()
     {
-        let ok = true;
+        this.logger && this.logger.info('KafkaClient#dispose: Disposing ...');
 
-        this.logger && this.logger.info('Eventclient#dispose: Disposing ...');
+        let disposePromises = [];
 
-        if (this._consumer) { ok = await this._consumer.dispose() && !!ok; }
-        if (this._producer) { ok = await this._producer.dispose() && !!ok; }
+        if (this._consumer)
+            disposePromises.push(this._consumer.dispose());
 
-        return !!ok;
+        if (this._producer)
+            disposePromises.push(this._producer.dispose());
+
+        const result = await Promise.all(disposePromises);
+
+        return !result.some((v) => v !== true); // Check if all values equal `true`
     }
-
 
     /**
      * Checks whenever the passed *topic* or pattern already has an active subscription inside the
