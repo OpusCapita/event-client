@@ -14,7 +14,7 @@
     "clean": "npx rimraf coverage/* .nyc_output",
     "test": "npm run clean ; npm run setup-consul ; npx nyc mocha --timeout 120000 -R mocha-junit-reporter test/*.js",
     "test:raw": "npm run clean ; npm run setup-consul ; npx mocha --inspect=0.0.0.0:9230  --timeout 120000 test/**/*.test.js",
-    "test:watch": "npm run clean; npm run setup-consul; npx mocha --watch --inspect=0.0.0.0:9230 --timeout 120000 --recursive  ./test/**/*.test.js ./src/**/*.js",
+    "test:watch": "npm run clean; npm run setup-consul; DEBUG=sinek:n* npx mocha --watch --inspect=0.0.0.0:9230 --timeout 120000 --recursive  ./test/**/*.test.js ./src/**/*.js",
     "test-coverage": "npm run clean ; npm run setup-consul ; npx nyc --reporter=lcov mocha --timeout 120000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",
     "upload-coverage": "cat ./coverage/lcov.info | npx coveralls",
     "api-doc": "npx jsdoc2md --files ./src/clients/amqp/lib/* ./src/clients/kafka/* > wiki/Home.md",
