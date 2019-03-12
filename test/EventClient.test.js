@@ -85,42 +85,84 @@ describe('EventClient', () => {
         });
     });
 
-    describe.only('#publish and #subscribe', () => {
-        let client;
+    describe('#publish and #subscribe', () => {
 
-        beforeEach(async () => {
-            client = eventClientFactory({
-                consumerGroupId: `test-${Date.now()}` // Consumer group id randomization fixes problem with timeouts on rebalancing on kafka
+        describe('with RabbitMQ', () => {
+            let client;
+
+            beforeEach(async () => {
+                client = eventClientFactory({
+                    consumerGroupId: `test-${Date.now()}` // Consumer group id randomization fixes problem with timeouts on rebalancing on kafka
+                });
+
+                return await client.init();
             });
 
-            return await client.init();
-        });
-
-        afterEach(async () => {
-            client && await client.dispose();
-            client = null;
-            return true;
-        });
-
-        it('Should publish messages to a topic.', async () => {
-            const msg = `ping ${Date.now()}`;
-            const receivedMessages = [];
-
-            await client.subscribe('event-client.test.producing', (message, headers, topic, routingKey) => {
-                receivedMessages.push(message);
+            afterEach(async () => {
+                client && await client.dispose();
+                client = null;
+                return true;
             });
 
-            await client.publish('event-client.test.producing', msg);
+            it('Should publish messages to a topic.', async () => {
+                const msg = `ping ${Date.now()}`;
+                const receivedMessages = [];
 
-            let ok = await retry(() => {
-                if (receivedMessages.includes(msg))
-                    return Promise.resolve(true);
-                else
-                    return Promise.reject(new Error('Message not yet received'));
-            }, {'max_tries': 80}); // Long wait interval, kafka rebalancing takes some time
+                await client.subscribe('event-client.test.producing', (message, headers, topic, routingKey) => {
+                    receivedMessages.push(message);
+                });
 
-            assert(ok);
+                await client.publish('event-client.test.producing', msg);
+
+                let ok = await retry(() => {
+                    if (receivedMessages.includes(msg))
+                        return Promise.resolve(true);
+                    else
+                        return Promise.reject(new Error('Message not yet received'));
+                }, {'max_tries': 80}); // Long wait interval, kafka rebalancing takes some time
+
+                assert(ok);
+            });
         });
+
+        describe('with Kafka', () => {
+            let client;
+
+            beforeEach(async () => {
+                client = eventClientFactory({
+                    consumerGroupId: `test-${Date.now()}`, // Consumer group id randomization fixes problem with timeouts on rebalancing on kafka
+                    sendWith: 'kafka'
+                });
+
+                return await client.init();
+            });
+
+            afterEach(async () => {
+                client && await client.dispose();
+                client = null;
+            });
+
+            it('Should publish messages to a topic.', async () => {
+                const msg = `ping ${Date.now()}`;
+                const receivedMessages = [];
+
+                await client.subscribe('event-client.#', (message) => {
+                    receivedMessages.push(message);
+                });
+
+                await client.publish('event-client.test.producing', msg);
+
+                let ok = await retry(() => {
+                    if (receivedMessages.includes(msg))
+                        return Promise.resolve(true);
+                    else
+                        return Promise.reject(new Error('Message not yet received'));
+                }, {timeout: 10000 }); // Long wait interval, kafka rebalancing takes some time
+
+                assert(ok);
+            });
+        });
+
     });
 
     describe('#unsubscribe', () => {

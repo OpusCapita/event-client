@@ -89,10 +89,11 @@ module.exports = class KafkaHelper {
                 result = new RegExp(routingKey);
             else {
                 result = routingKey.replace(/\./g, '\\.');
+
                 result = result.replace(/\*/g, '\\w*\\b');
                 result = result.replace(/\#/g, '\\S*');
 
-                result = new RegExp('^' + result); // Always convert to regex so we do not subscribe to DLQs (topics starting with dlq__)
+                result = new RegExp('^' + result + '$'); // Always convert to regex so we do not subscribe to DLQs (topics starting with dlq__)
             }
         } else if (routingKey instanceof RegExp)
             result = routingKey;

@@ -84,8 +84,8 @@ describe('KafkaClient multi instance tests', () => {
             const subject1 = 'instance1.unsubscribe.test';
             const subject2 = 'instance2.unsubscribe.test';
 
-            await c1.subscribe(subject1, noopFn);
-            await c2.subscribe(subject2, noopFn);
+            await c1.subscribe(subject1, noopFn, {}, true);
+            await c2.subscribe(subject2, noopFn, {}, true);
 
             assert.equal(c2.consumer._subjectRegistry.has(KafkaHelper.getTopicFromRoutingKey(subject2).source), true);
 

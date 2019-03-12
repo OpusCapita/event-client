@@ -117,28 +117,28 @@ describe('KafkaClient single instance tests', () => {
         });
 
         it('Should subscribe to multiple subjects on the same topic.', async () => {
-            await client.subscribe('test.subscribe.test1', () => true);
-            await client.subscribe('test.subscribe.test2', () => true);
+            await client.subscribe('test.subscribe.test1', () => true, {}, true);
+            await client.subscribe('test.subscribe.test2', () => true, {}, true);
 
-            assert(client.consumer._subjectRegistry.get('^test\\.subscribe').size === 2);
+            assert(client.consumer._subjectRegistry.get('^test\\.subscribe$').size === 2);
 
             await client.dispose();
         });
 
         it('Should unsubscribe from a subject.', async () => {
-            await client.subscribe('test.unsubscribe.test1', () => true);
-            await client.subscribe('test.unsubscribe.test2', () => true);
+            await client.subscribe('test.unsubscribe.test1', () => true, {}, true);
+            await client.subscribe('test.unsubscribe.test2', () => true, {}, true);
 
             await client.unsubscribe('test.unsubscribe.test1');
 
-            assert(client.consumer._subjectRegistry.get('^test\\.unsubscribe').size === 1);
+            assert(client.consumer._subjectRegistry.get('^test\\.unsubscribe$').size === 1);
 
             await client.dispose();
         });
 
         it('Should successfully remove all transactions (sinek bug workaround test).', async () => {
-            await client.subscribe('test.unsubscribe.all', () => true);
-            assert(client.consumer._subjectRegistry.get('^test\\.unsubscribe').size === 1);
+            await client.subscribe('test.unsubscribe.all', () => true, {}, true);
+            assert(client.consumer._subjectRegistry.get('^test\\.unsubscribe$').size === 1);
 
             await client.unsubscribe('test.unsubscribe.all');
             assert.strictEqual(client.consumer._subjectRegistry.has('^test\\.unsubscribe'), false);
@@ -167,23 +167,46 @@ describe('KafkaClient single instance tests', () => {
             assert(client.producer.knownTopics.length === 1);
         });
 
-        it('Should publish messages to a topic.', async () => {
+        it('Should allow to publish messages to a rabbitmq style routing key.', async () => {
             const msg = `ping ${Date.now()}`;
             const receivedMessages = [];
 
-            await client.subscribe('test.producing', (message) => {
+            await client.subscribe('test.producing#', (message) => {
                 receivedMessages.push(message);
-            });
+            }, {}, true);
 
-            await client.publish('test.producing', msg);
+            console.log(await client.publish('test.producing.ping', msg, null, {}, true));
 
             let ok = await retry(() => {
+
                 if (receivedMessages.includes(msg))
                     return Promise.resolve(true);
                 else
                     return Promise.reject(new Error('Message not yet received'));
 
-            }, {'max_tries': 80}); // Long wait interval, kafka rebalancing takes some time
+            }, {'max_tries': 80, timeout: 20000}); // Long wait interval, kafka rebalancing takes some time
+
+            assert(ok);
+        });
+
+        it('Should allow to publish to kafka topics w/o converting the topic.', async () => {
+            const msg = `ping ${Date.now()}`;
+            const receivedMessages = [];
+
+            await client.subscribe('test.producing.ping', (message) => {
+                receivedMessages.push(message);
+            });
+
+            console.log(await client.publish('test.producing.ping', msg, null, {}));
+
+            let ok = await retry(() => {
+
+                if (receivedMessages.includes(msg))
+                    return Promise.resolve(true);
+                else
+                    return Promise.reject(new Error('Message not yet received'));
+
+            }, {'max_tries': 80, timeout: 20000}); // Long wait interval, kafka rebalancing takes some time
 
             assert(ok);
         });
@@ -237,11 +260,21 @@ describe('KafkaClient single instance tests', () => {
                 client = null;
             });
 
-            it('Should indicate if a topic was subscribed.', async () => {
+            it('Should indicate if a kafka-esque topic was subscribed.', async () => {
                 await client.subscribe('test.hassubscription.sub1', noopFn);
 
                 assert.equal(client.hasSubscription('test.hassubscription.sub1'), true);
                 assert.equal(client.hasSubscription('test.baz'), false);
+
+                assert.throws(() => client.hasSubscription([]));
+            });
+
+            it('Should indicate if a rabbitmq-style subject was subscribed.', async () => {
+                await client.subscribe('test.hassubscription.sub1', noopFn, {}, true);
+
+                assert.equal(client.hasSubscription('test.hassubscription.sub1', true), true);
+                assert.equal(client.hasSubscription('test.baz'), false);
+
                 assert.throws(() => client.hasSubscription([]));
             });
 

@@ -120,13 +120,15 @@ class Consumer extends EventEmitter
      * current instance of KafkaClient. The *topic* can either be a full name of a
      * channel or a pattern.
      *
+     * @function hasSubscription
      * @param {string} topic - Full name of a topic or a pattern.
+     * @param {boolean} [convertTopic=false] - Indicates if the given topic needs to be converted because it is a RabbitMQ routing key.
      * @returns {boolean} Returns true if the *topic* is already subscribed; otherwise false.
      * @throws {Error}
      */
-    hasSubscription(subject)
+    hasSubscription(subject, convertTopic)
     {
-        const topicSubscription = (KafkaHelper.getTopicFromRoutingKey(subject)).source;
+        const topicSubscription = convertTopic ? (KafkaHelper.getTopicFromRoutingKey(subject)).source : subject;
         const convertedSubject = (KafkaHelper.convertRabbitWildcard(subject)).source;
 
         return this._subjectRegistry.has(topicSubscription) && this._subjectRegistry.get(topicSubscription).has(convertedSubject);
@@ -143,14 +145,15 @@ class Consumer extends EventEmitter
      * @param {function} callback
      * @param {object} opts
      * @param {string} opts.subject - The original routingKey. Used to register locally for later pattern matching on incoming messages.
+     * @param {boolean} convertTopic - Indicates if the given topic needs to be converted because it is a RabbitMQ routing key.
      * @returns {boolean}
      * @throws {ConsumerError}
      */
-    async subscribe(subject, callback = null, opts = {})
+    async subscribe(subject, callback = null, opts = {}, convertTopic = false)
     {
-        const topicSubscription = (KafkaHelper.getTopicFromRoutingKey(subject)).source; // FIXME This should be done in EventClient not here, check that subject is a valid subscription but do not convert
+        const topicSubscription = convertTopic ? (KafkaHelper.getTopicFromRoutingKey(subject)).source : subject;
+ 
         const convertedSubject = (KafkaHelper.convertRabbitWildcard(subject)).source; // FIXME This should be done in EventClient not here, check that subject is a valid subscription but do not convert
-
 
         if (this._subjectRegistry.has(topicSubscription) && this._subjectRegistry.has(topicSubscription)) {
             const subjects = this._subjectRegistry.get(topicSubscription);
@@ -436,6 +439,7 @@ class Consumer extends EventEmitter
     async _onConsumerMessage(message, doneCb)
     {
         let payload, context, rabbitRoutingKey, messageSubject;
+
         try {
             const {routingKey, content, headers, subject} = this._prepareIncomingMessage(message);
             rabbitRoutingKey = routingKey;

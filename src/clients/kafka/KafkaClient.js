@@ -148,11 +148,12 @@ class KafkaClient
      * channel or a pattern.
      *
      * @param {string} topic - Full name of a topic or a pattern.
+     * @param {boolean} [convertTopic=false] - Indicates if the given topic needs to be converted because it is a RabbitMQ routing key.
      * @returns {boolean} Returns true if the *topic* is already registered; otherwise false.
      */
-    hasSubscription(topic)
+    hasSubscription(topic, convertTopic = false)
     {
-        return this.consumer.hasSubscription(topic);
+        return this.consumer.hasSubscription(topic, convertTopic);
     }
 
     /**
@@ -182,15 +183,38 @@ class KafkaClient
      * and will extend a possibly existing global context defined by the config object passed
      * to the constructor (see {@link KafkaClient.DefaultConfig}).
      *
+     * @param {string} topic - Domain model part of the subject. (Subject is usually the original rabbit-mq routingkey)
+     * @param {string} subject - Subject will be attached to the message and is used to identify callbacks of subscribers.
+     * @param {object} message - Payload to be sent to a receiver.
+     * @param {object} context - Optional context containing meta data for the receiver of an event.
+     * @param {EmitOpts} opts - Additional options to be set for emmiting an event.
+     * @param {boolean} convertTopic - Indicates if the given topic needs to be converted because it is a RabbitMQ routing key.
+     * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to null if the subscription succeeded. Otherwise the promise gets rejected with an error.
+     * @fulfil {object} Result of message producing. Should be {key, partition}
+     * @reject {Error}
+     */
+    async publish(topic, message, context = null, opts = {}, convertTopic = false)
+    {
+        const subject = topic;
+
+        if (convertTopic)
+            topic = KafkaHelper.getTopicFromSubjectForPublish(subject);
+
+        return this._publishToTopic(topic, subject, message,  context, opts);
+    }
+
+    /**
+     * For a description @see KafkaClient#publish.
+     *
      * @param {string} subject - Full subject of the message. Topic will be extracted from this and subject will be added to the message header.
      * @param {object} message - Payload to be sent to a receiver.
      * @param {object} context - Optional context containing meta data for the receiver of an event.
      * @param {EmitOpts} opts - Additional options to be set for emmiting an event.
      * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to null if the subscription succeeded. Otherwise the promise gets rejected with an error.
-     * @fulfil {
+     * @fulfil {object} Result of message producing. Should be {key, partition}
      * @reject {Error}
      */
-    async publish(subject, message, context = null, opts = {})
+    async publishToSubject(subject, message, context = null, opts = {})
     {
         const topic = KafkaHelper.getTopicFromSubjectForPublish(subject);
         return this._publishToTopic(topic, subject, message, context, opts);
@@ -198,6 +222,9 @@ class KafkaClient
 
     async _publishToTopic(topic, subject, message, context = null, opts = {})
     {
+        if (typeof opts !== 'object')
+            throw new TypeError('Invalid argument opts. Opts has to be an object.');
+
         if (!this._producer)
             await this._initProducer();
 
@@ -215,14 +242,15 @@ class KafkaClient
      * @param {string|RegExp} subject - Full name of a subject or a pattern. The kafka topic will be parsed from this.
      * @param {function} callback - Optional function to be called when a message for a topic or a pattern arrives.
      * @param {SubscribeOpts} opts - Additional options to set for the subscription.
+     * @param {boolean} [convertTopic=false] - Indicates if the given topic needs to be converted because it is a RabbitMQ routing key.
      * @returns {Promise} [Promise](http://bluebirdjs.com/docs/api-reference.html) resolving to null if the subscription succeeded. Otherwise the promise gets rejected with an error.
      */
-    async subscribe(subject, callback = null, opts = {})
+    async subscribe(subject, callback = null, opts = {}, convertTopic = false)
     {
         if (!this._consumer)
             await this._initConsumer();
 
-        return this.consumer.subscribe(subject, callback, opts);
+        return this.consumer.subscribe(subject, callback, opts, convertTopic);
     }
 
     /**

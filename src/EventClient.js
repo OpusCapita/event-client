@@ -221,6 +221,7 @@ class EventClient {
      *
      * @async
      * @function _publishKafka
+     * @return {Promise}
      */
     async _publishKafka(routingKey, message, context, opts)
     {
@@ -228,11 +229,7 @@ class EventClient {
         if (hasWildcard)
             throw new Error('Routing keys are not allowed to contain wildcards.');
 
-        // TODO reenable here instead of doing the conversion in Kafka Consumer
-        // const topic = KafkaHelper.getTopicFromRoutingKey(routingKey); // Convert routingKey to kafka topic
-        // this.logger.info(`${this.klassName}#_publishKafka: Converted routing key ${routingKey} to topic ${topic}`);
-
-        return this.kafkaClient.publish(routingKey, message, context, opts);
+        return this.kafkaClient.publish(routingKey, message, context, opts, true);
     }
 
     /**
