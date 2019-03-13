@@ -161,6 +161,9 @@ describe('EventClient', () => {
 
                 assert(ok);
             });
+
+            it('Should send messages that are not handled by the application to the DLQ.');
+            
         });
 
     });

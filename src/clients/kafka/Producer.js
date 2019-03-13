@@ -264,7 +264,9 @@ class Producer extends EventEmitter
      *
      * @private
      * @function _publish
+     * @param {string} topic
      * @param {object} message - @see publish
+     * @return {Promise}
      */
     _publish(topic, message) {
         let result = null;

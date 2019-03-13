@@ -116,80 +116,78 @@ describe('KafkaClient multi instance tests', () => {
         it('Should receive messages once per consumer group.');
     });
 
-    // describe('Reque behavior', () => {
-    //     let c1, c2;
+    describe('Reque behavior', () => {
+        let c1, c2;
 
-    //     beforeEach(() => {
-    //         c1 = eventClientFactory({consumerGroupId: 'test-alpha'});
-    //         c2 = eventClientFactory({consumerGroupId: 'test-beta'});
-    //     });
+        beforeEach(() => {
+            c1 = eventClientFactory({consumerGroupId: 'test-alpha'});
+            c2 = eventClientFactory({consumerGroupId: 'test-beta'});
+        });
 
-    //     afterEach(async () => {
-    //         c1 && await c1.dispose(); c1 = null;
-    //         c2 && await c2.dispose(); c2 = null;
-    //     });
+        afterEach(async () => {
+            c1 && await c1.dispose(); c1 = null;
+            c2 && await c2.dispose(); c2 = null;
+        });
 
-    //     it('Should reque message on application callback returning a falsy values.', () => {
-    //         return new Promise(async (resolve) => {
-    //             let rxCnt = 0;
-    //             let txCnt = 0;
+        it('Should move message to the DLQ after 3 attempts on application callback returning a falsy values.', () => {
+            return new Promise(async (resolve) => {
+                let rxCnt = 0;
+                let txCnt = 0;
 
-    //             const sendFn = async () => {
-    //                 await c2.publish('test.dlq', txCnt, {'txCnt': txCnt});
-    //                 txCnt++;
-    //                 if (txCnt < 5) {
-    //                     setTimeout(sendFn, 200);
-    //                 }
-    //             };
+                const sendFn = async () => {
+                    await c2.publish('test.dlq', txCnt, {'txCnt': txCnt});
+                    txCnt++;
+                    if (txCnt < 5) {
+                        setTimeout(sendFn, 200);
+                    }
+                };
 
-    //             await c1.subscribe('test.dlq', (message) => {
-    //                 rxCnt++;
+                await c1.subscribe('test.dlq', (message) => {
+                    rxCnt++;
 
-    //                 console.log(message);
+                    if (rxCnt >= 5) {
+                        resolve();
+                    } else {
+                        return false;
+                    }
+                });
 
-    //                 if (rxCnt >= 5) {
-    //                     resolve();
-    //                 } else {
-    //                     return false;
-    //                 }
-    //             });
+                sendFn();
+            });
+        });
 
-    //             sendFn();
-    //         });
-    //     });
+        it('Should send messages to the dead letter queue.', () => {
+            return new Promise(async (resolve, reject) => {
+                let txCnt = 0;
+                let dlqReceived = false;
 
-    //     it('Should send messages to the dead letter queue.', () => {
-    //         return new Promise(async (resolve, reject) => {
-    //             let txCnt = 0;
-    //             let dlqReceived = false;
+                const payload = Math.random().toString(36).substring(7);
 
-    //             const payload = Math.random().toString(36).substring(7);
+                await c1.init();
+                await c2.init();
 
-    //             await c1.init();
-    //             await c2.init();
+                await c1.subscribe('test.dlq', () => {
+                    return false;
+                });
 
-    //             await c1.subscribe('test.dlq', () => {
-    //                 return false;
-    //             });
+                await c2.subscribe('dlq__test.dlq', ({randMsg}) => {
+                    if (randMsg === payload) {
+                        dlqReceived = true;
+                        return true;
+                    }
+                });
 
-    //             await c2.subscribe('test.dlq__dlq', ({randMsg}) => {
-    //                 if (randMsg === payload) {
-    //                     dlqReceived = true;
-    //                     return true;
-    //                 }
-    //             });
+                await c2.publish('test.dlq', {randMsg: payload}, {'txCnt': txCnt});
 
-    //             await c2.publish('test.dlq', {randMsg: payload}, {'txCnt': txCnt});
+                retry(() => {
+                    if (dlqReceived)
+                        resolve();
+                    else
+                        throw new Error();
+                }, {'max_tries': 60, interval: 500 }).catch(reject);
+            });
+        });
 
-    //             retry(() => {
-    //                 if (dlqReceived)
-    //                     resolve();
-    //                 else
-    //                     throw new Error();
-    //             }, {'max_tries': 40, interval: 500 }).catch(reject);
-    //         });
-    //     });
-
-    // });
+    });
 
 });

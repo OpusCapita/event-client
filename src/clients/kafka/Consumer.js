@@ -1,3 +1,4 @@
+const retry           = require('bluebird-retry');
 const EventEmitter    = require('events');
 const Logger          = require('ocbesbn-logger');
 const {NConsumer}     = require('sinek');
@@ -464,28 +465,29 @@ class Consumer extends EventEmitter
                     if (messageSubject.match(new RegExp(subject)))
                     {
                         if (typeof callback !== 'function')
-                            // TODO Maybe not throw?
-                            throw new Error('Application callback is not a function.');
+                            throw new Error('Application callback is not a function.'); // TODO Maybe not throw?
 
-                        // TODO Retry application callback with exponential backoff
+                        let result = null;
                         try {
-                            const result = await callback(payload, context, message.topic, rabbitRoutingKey);
-                            // FIXME adding __dlq does not work with wildcard subscriptions
-                            if (result !== true && !message.topic.endsWith('__dlq')) {
-                                this.logger.warn(this.klassName, '#_onConsumerMessage: Application callback returned a value other than true.');
+                            result = await retry(async () => {
+
+                                const result = await callback(payload, context, message.topic, rabbitRoutingKey);
+                                if (result !== true)
+                                    throw new Error('Application callback returned a value other than true.');
+                                return result;
+
+                            }, {'max_tries': 3});
+                        } catch (e) {
+                            if (result !== true && !message.topic.startsWith('dlq__')) {
                                 requeMessage = true;
                             }
-                        } catch (e) {
+
                             this.logger.error(this.klassName, '#_onConsumerMessage: Calling the registered callback for topic ', message.topic, ' failed with exception.', e);
                             requeMessage = true;
-
-                            // TODO move message to DLQ
                         }
 
                         if (requeMessage) {
-                            console.log('FIXME dead letter queueing');
-                            // TODO
-                            // this.emit('requeue', message);
+                            this.emit('dlqmessage', message);
                         }
                     }
                 }

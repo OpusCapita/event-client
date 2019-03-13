@@ -343,7 +343,7 @@ class KafkaClient
         let connectionConfig = await this._getMqConfig();
         const connectResult = await this._consumer.connect(connectionConfig);
 
-        this.consumer.on('requeue', this._onConsumerRequeue.bind(this));
+        this.consumer.on('dlqmessage', this._onConsumerDlqMessage.bind(this));
 
         this.logger && this.logger.info('KafkaClient#_initConsumer: Consumer connection setup returned: ', connectResult);
 
@@ -371,7 +371,7 @@ class KafkaClient
      * Requeue behaviour for kafka.
      *
      * @async
-     * @function _onConsumerRequeue
+     * @function _onConsumerDlqMessage
      * @param {object} message
      * @param {string} message.key
      * @param {number} message.offset
@@ -384,40 +384,23 @@ class KafkaClient
      * @param {string} message.value.properties.routingKey - Topic the message is produced to.
      * @param {string} message.value.content    - Stringified JSON containing the actual payload of the message. Needs to be deserialized with the parser given in the config from KafkaClient#constructor.
      */
-    async _onConsumerRequeue(message) {
-        const parsedMessage = JSON.parse(message.value);
-        const headers = (((parsedMessage || {}).properties) || {}).headers || null;
+    async _onConsumerDlqMessage(message) {
+        try {
+            const parsedMessage = JSON.parse(message.value);
 
-        if (headers) {
-            if (!this._producer) { await this._initProducer(); }
+            if (!this._producer)
+                await this._initProducer();
 
-            if (headers.retryCount && headers.retryCount >= 5) {
-                // Send to DLQ after 5 retries
-                // FIXME adding __dlq does not work with wildcard subscriptions
-                const dlq = `${parsedMessage.properties.routingKey}__dlq`;
-                this.logger.info(`${this.klassName}#_onConsumerRequeue: Moving msg to DLQ.`, dlq);
+            const dlq = `dlq__${parsedMessage.properties.routingKey}`;
 
-                parsedMessage.properties.routingKey = dlq;
+            parsedMessage.properties.routingKey = dlq;
+            parsedMessage.properties.subject = `dlq__${parsedMessage.properties.subject}`
 
-                try {
-                    await this.producer._publish(parsedMessage);
-                } catch (e) {
-                    this.logger.error(`${this.klassName}#_onConsumerRequeue: Failed to move msg to DLQ.`, dlq, message);
-                }
-            } else {
-                // Increment retry header and requeue message
-                let retryCount = headers.retryCount || 0;
+            await this.producer._publish(dlq, parsedMessage);
 
-                parsedMessage.properties.headers.retryCount = ++retryCount;
-
-                try {
-                    await this.producer._publish(parsedMessage);
-                } catch (e) {
-                    this.logger.error(`${this.klassName}#_onConsumerRequeue: Failed to requeue message.`, message);
-                }
-            }
-        } else {
-            this.logger.error(`${this.klassName}#_onConsumerRequeue: Failed to parse incoming message.`, message);
+            this.logger.log(`${this.klassName}#_onConsumerDlqMessage: Moved message to DLQ.`, message);
+        } catch (e) {
+            this.logger.error(`${this.klassName}#_onConsumerDlqMessage: Failed to handle message.`, message, e);
         }
     }
 
