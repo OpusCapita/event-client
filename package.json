@@ -36,7 +36,7 @@
     "death": "^1.1.0",
     "extend": "^3.0.1",
     "ocbesbn-logger": "^1.0.11",
-    "sinek": "^6.24.1",
+    "sinek": "^6.27.2",
     "superagent": "^3.8.3"
   },
   "devDependencies": {
