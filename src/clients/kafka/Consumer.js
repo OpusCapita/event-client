@@ -104,7 +104,11 @@ class Consumer extends EventEmitter
         try {
             if (this._consumer) {
                 this._consumer.close(true);
-                // this._consumer = null;
+
+                process.nextTick(() => {
+                    this.consumer.consumer = null; // Workaround for sinek bug #101
+                    this._consumer = null;
+                });
             }
 
             ok = true;

@@ -142,7 +142,7 @@ describe('KafkaClient multi instance tests', () => {
                     }
                 };
 
-                await c1.subscribe('test.dlq', (message) => {
+                await c1.subscribe('test.dlq', () => {
                     rxCnt++;
 
                     if (rxCnt >= 5) {

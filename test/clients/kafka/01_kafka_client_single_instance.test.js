@@ -81,7 +81,6 @@ describe('KafkaClient single instance tests', () => {
 
         it('Should subscribe to a topic based on a pattern.', async () => {
             const result = await client.subscribe('^pattern.*.com', () => {});
-            // console.log('--->', result);
             assert.strictEqual(result, true);
         });
 
@@ -175,7 +174,7 @@ describe('KafkaClient single instance tests', () => {
                 receivedMessages.push(message);
             }, {}, true);
 
-            console.log(await client.publish('test.producing.ping', msg, null, {}, true));
+            // console.log(await client.publish('test.producing.ping', msg, null, {}, true));
 
             let ok = await retry(() => {
 
@@ -197,7 +196,7 @@ describe('KafkaClient single instance tests', () => {
                 receivedMessages.push(message);
             });
 
-            console.log(await client.publish('test.producing.ping', msg, null, {}));
+            // console.log(await client.publish('test.producing.ping', msg, null, {}));
 
             let ok = await retry(() => {
 

@@ -27,6 +27,7 @@ const eventClientFactory = (config) => {
 // const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
 
 describe('EventClient', () => {
+
     before(async () => {
         return await configService.init({logger : Logger.DummyLogger});
     });
@@ -41,8 +42,7 @@ describe('EventClient', () => {
         before(() => client = eventClientFactory());
 
         after(async () => {
-            client && await client.dispose();
-            client = null;
+            client && await client.dispose(); client = null;
         });
 
         it('Creates a new instance', () => {
@@ -71,8 +71,7 @@ describe('EventClient', () => {
         before(() => client = eventClientFactory());
 
         after(async () => {
-            client && await client.dispose();
-            client = null;
+            client && await client.dispose(); client = null;
         });
 
         it('Applies the given context to all instances.', () => {
@@ -99,9 +98,7 @@ describe('EventClient', () => {
             });
 
             afterEach(async () => {
-                client && await client.dispose();
-                client = null;
-                return true;
+                client && await client.dispose(); client = null;
             });
 
             it('Should publish messages to a topic.', async () => {
@@ -138,8 +135,7 @@ describe('EventClient', () => {
             });
 
             afterEach(async () => {
-                client && await client.dispose();
-                client = null;
+                client && await client.dispose(); client = null;
             });
 
             it('Should publish messages to a topic.', async () => {
