@@ -12,7 +12,7 @@
     "debug": "npm run clean ; npm run setup-consul ; npx nodemon --inspect=0.0.0.0:9230 --watch src/ --watch local/ local/debug.js",
     "setup-consul": "curl -X PUT -d ${RABBITMQ_USER} http://consul:8500/v1/kv/event-client/mq/user ; curl -X PUT -d ${RABBITMQ_PASS} http://consul:8500/v1/kv/event-client/mq/password",
     "clean": "npx rimraf coverage/* .nyc_output",
-    "test": "npm run clean ; npm run setup-consul ; npx nyc mocha --timeout 120000 -R mocha-junit-reporter test/*.js",
+    "test": "npm run clean ; npm run setup-consul ; npx nyc mocha --timeout 120000 -R mocha-junit-reporter test/**/*.test.js",
     "test:raw": "npm run clean ; npm run setup-consul ; npx mocha --inspect=0.0.0.0:9230  --timeout 120000 test/**/*.test.js",
     "test:watch": "npm run clean; npm run setup-consul; npx mocha --watch --inspect=0.0.0.0:9230 --timeout 120000 --recursive  ./test/**/*.test.js ./src/**/*.js",
     "test-coverage": "npm run clean ; npm run setup-consul ; npx nyc --reporter=lcov mocha --timeout 120000 && sed -i 's/\\/home\\/node\\/event-client\\//\\.\\//g' coverage/lcov.info",

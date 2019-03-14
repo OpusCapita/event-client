@@ -79,7 +79,13 @@ class Producer extends EventEmitter
     async dispose()
     {
         try {
-            if (this._producer) { await this._producer.close(true); }
+            if (this._producer) 
+                await this._producer.close(true);
+
+            process.nextTick(() => {
+                this._producer.producer = null; // Workaround for sinek bug #101
+                this._producer = null;
+            });
         } catch (e) {
             this.logger.error('Producer#dispose: Failed to close the producers with exception. ', e);
         }
