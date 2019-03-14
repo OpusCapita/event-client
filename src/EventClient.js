@@ -30,8 +30,10 @@ class EventClient {
         this._amqpClient  = new AmqpClient(this.config);
         this._kafkaClient = new KafkaClient(this.config);
 
-        ON_DEATH((signal, err) => {
+        this.OFF_DEATH = ON_DEATH(async (signal, err) => {
             this.logger.info(this.klassName, '#onDeath: Got signal: ' + signal, ' and error: ', err);
+
+            await this.dispose();
         });
 
         /**
@@ -103,6 +105,8 @@ class EventClient {
         ]);
 
         this.logger.info(`${this.klassName}#dispose: Return client disposes with result: `, result);
+
+        this.OFF_DEATH();
 
         return result;
     }

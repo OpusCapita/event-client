@@ -31,7 +31,7 @@ class KafkaClient
         this._consumer = null;
         this._producer = null;
 
-        ON_DEATH((signal, err) => {
+        this.OFF_DEATH = ON_DEATH((signal, err) => {
             this.logger.info('KafkaClient#onDeath: Got signal: ' + signal, ' and error: ', err);
             this.dispose();
         });
@@ -138,6 +138,8 @@ class KafkaClient
             disposePromises.push(this._producer.dispose());
 
         const result = await Promise.all(disposePromises);
+
+        this.OFF_DEATH();
 
         return !result.some((v) => v !== true); // Check if all values equal `true`
     }
