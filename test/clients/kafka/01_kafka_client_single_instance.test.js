@@ -135,7 +135,8 @@ describe('KafkaClient single instance tests', () => {
             await client.dispose();
         });
 
-        it('Should successfully remove all transactions (sinek bug workaround test).', async () => {
+        // TODO check if this is fixed in v6.27.0
+        it('Should successfully remove all transactions (sinek bug workaround test).', async () => { 
             await client.subscribe('test.unsubscribe.all', () => true, {}, true);
             assert(client.consumer._subjectRegistry.get('^test\\.unsubscribe$').size === 1);
 
@@ -153,8 +154,7 @@ describe('KafkaClient single instance tests', () => {
         }));
 
         afterEach(async () => {
-            client && await client.dispose();
-            client = null;
+            client && await client.dispose(); client = null;
         });
 
         it('Should create topics before publishing to them.', async () => {
@@ -170,11 +170,11 @@ describe('KafkaClient single instance tests', () => {
             const msg = `ping ${Date.now()}`;
             const receivedMessages = [];
 
-            await client.subscribe('test.producing#', (message) => {
+            await client.subscribe('test.rabbitproducing#', (message) => {
                 receivedMessages.push(message);
             }, {}, true);
 
-            // console.log(await client.publish('test.producing.ping', msg, null, {}, true));
+            await client.publish('test.rabbitproducing.ping', msg, null, {}, true);
 
             let ok = await retry(() => {
 
@@ -183,7 +183,7 @@ describe('KafkaClient single instance tests', () => {
                 else
                     return Promise.reject(new Error('Message not yet received'));
 
-            }, {'max_tries': 80, timeout: 20000}); // Long wait interval, kafka rebalancing takes some time
+            }, {'max_tries': 50, interval:500}); // Long wait interval, kafka rebalancing takes some time
 
             assert(ok);
         });
@@ -196,7 +196,7 @@ describe('KafkaClient single instance tests', () => {
                 receivedMessages.push(message);
             });
 
-            // console.log(await client.publish('test.producing.ping', msg, null, {}));
+            await client.publish('test.producing.ping', msg, null, {});
 
             let ok = await retry(() => {
 
@@ -205,7 +205,7 @@ describe('KafkaClient single instance tests', () => {
                 else
                     return Promise.reject(new Error('Message not yet received'));
 
-            }, {'max_tries': 80, timeout: 20000}); // Long wait interval, kafka rebalancing takes some time
+            }, {'max_tries': 80, interval: 500}); // Long wait interval, kafka rebalancing takes some time
 
             assert(ok);
         });
@@ -225,7 +225,7 @@ describe('KafkaClient single instance tests', () => {
                 } else {
                     return Promise.reject(new Error('Message not yet received'));
                 }
-            }, {'max_tries': 50}); // Long wait interval, kafka rebalancing takes some time
+            }, {'max_tries': 50, interval: 500}); // Long wait interval, kafka rebalancing takes some time
 
             assert(receivedCtx.hasOwnProperty('chuck'));
         });

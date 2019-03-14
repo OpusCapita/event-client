@@ -144,6 +144,7 @@ describe('EventClient', () => {
 
                 await client.subscribe('event-client.#', (message) => {
                     receivedMessages.push(message);
+                    return true;
                 });
 
                 await client.publish('event-client.test.producing', msg);
@@ -153,7 +154,7 @@ describe('EventClient', () => {
                         return Promise.resolve(true);
                     else
                         return Promise.reject(new Error('Message not yet received'));
-                }, {timeout: 10000 }); // Long wait interval, kafka rebalancing takes some time
+                }, {max_tries: 50, interval: 500 }); // Long wait interval, kafka rebalancing takes some time
 
                 assert(ok);
             });
