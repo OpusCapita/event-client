@@ -30,7 +30,7 @@ const eventClientFactory = (config) => {
 
 const noopFn = () => {};
 
-describe.only('KafkaClient multi instance tests', () => {
+describe('KafkaClient multi instance tests', () => {
 
     before(async () =>
     {
