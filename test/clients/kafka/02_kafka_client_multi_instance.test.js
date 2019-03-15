@@ -12,7 +12,7 @@ const Logger        = require('ocbesbn-logger');
 const KafkaClient      = require('../../../src/clients/kafka/');
 const KafkaHelper      = require('../../../src/clients/kafka/KafkaHelper.js');
 
-// const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
+const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
 
 const consulOverride = {
     host:  'kafka1',
@@ -178,6 +178,8 @@ describe('KafkaClient multi instance tests', () => {
 
                     return true;
                 });
+
+                await sleep(5000);
 
                 await c2.publish('test.dlqRx', {randMsg: payload}, {'txCnt': txCnt});
 
