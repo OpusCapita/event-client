@@ -30,7 +30,7 @@ const eventClientFactory = (config) => {
 
 const noopFn = () => {};
 
-describe('KafkaClient multi instance tests', () => {
+describe.only('KafkaClient multi instance tests', () => {
 
     before(async () =>
     {
@@ -116,7 +116,7 @@ describe('KafkaClient multi instance tests', () => {
         it('Should receive messages once per consumer group.');
     });
 
-    describe('Reque behavior', () => {
+    describe('Dead letter queueing behavior', () => {
         let c1, c2;
 
         beforeEach(() => {
@@ -166,25 +166,27 @@ describe('KafkaClient multi instance tests', () => {
                 await c1.init();
                 await c2.init();
 
-                await c1.subscribe('test.dlq', () => {
+                await c1.subscribe('test.dlqRx', () => {
                     return false;
                 });
 
-                await c2.subscribe('dlq__test.dlq', ({randMsg}) => {
+                await c2.subscribe('dlq__test.dlqRx', ({randMsg}) => {
+                    console.log('::DEBUG::', 'Message received on dlq__test.dlqRx', randMsg);
                     if (randMsg === payload) {
                         dlqReceived = true;
-                        return true;
                     }
+
+                    return true;
                 });
 
-                await c2.publish('test.dlq', {randMsg: payload}, {'txCnt': txCnt});
+                await c2.publish('test.dlqRx', {randMsg: payload}, {'txCnt': txCnt});
 
                 retry(() => {
                     if (dlqReceived)
                         resolve();
                     else
                         throw new Error();
-                }, {'max_tries': 60, interval: 500 }).catch(reject);
+                }, {'max_tries': 80, interval: 500 }).catch(reject);
             });
         });
 
