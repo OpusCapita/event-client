@@ -129,32 +129,33 @@ describe('KafkaClient multi instance tests', () => {
             c2 && await c2.dispose(); c2 = null;
         });
 
-        it('Should move message to the DLQ after 3 attempts on application callback returning a falsy values.', () => {
-            return new Promise(async (resolve) => {
-                let rxCnt = 0;
-                let txCnt = 0;
+        // FIXME This test does not test what it's descriptions says
+        // it('Should move message to the DLQ after 3 attempts on application callback returning a falsy values.', () => {
+        //     return new Promise(async (resolve) => {
+        //         let rxCnt = 0;
+        //         let txCnt = 0;
 
-                const sendFn = async () => {
-                    await c2.publish('test.dlq', txCnt, {'txCnt': txCnt});
-                    txCnt++;
-                    if (txCnt < 5) {
-                        setTimeout(sendFn, 200);
-                    }
-                };
+        //         const sendFn = async () => {
+        //             await c2.publish('test.dlq', txCnt, {'txCnt': txCnt});
+        //             txCnt++;
+        //             if (txCnt < 5) {
+        //                 setTimeout(sendFn, 200);
+        //             }
+        //         };
 
-                await c1.subscribe('test.dlq', () => {
-                    rxCnt++;
+        //         await c1.subscribe('test.dlq', () => {
+        //             rxCnt++;
 
-                    if (rxCnt >= 5) {
-                        resolve();
-                    } else {
-                        return false;
-                    }
-                });
+        //             if (rxCnt >= 5) {
+        //                 resolve();
+        //             } else {
+        //                 return false;
+        //             }
+        //         });
 
-                sendFn();
-            });
-        });
+        //         sendFn();
+        //     });
+        // });
 
         it('Should send messages to the dead letter queue.', () => {
             return new Promise(async (resolve, reject) => {
