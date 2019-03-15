@@ -1,6 +1,5 @@
 const AmqpClient     = require('./clients/amqp/');
 const KafkaClient    = require('./clients/kafka/');
-const KafkaHelper    = require('./clients/kafka/KafkaHelper');
 const {NotImplError} = require('./err/');
 
 const configService = require('@opuscapita/config');
@@ -8,6 +7,8 @@ const Logger        = require('ocbesbn-logger');
 
 const extend   = require('extend');
 const ON_DEATH = require('death'); // This is intentionally ugly
+
+let instanceCnt = 0;
 
 /**
  * @todo Methods form 2x EventClient:
@@ -21,6 +22,8 @@ class EventClient {
     {
         const self = this;
 
+        instanceCnt++;
+
         this._logger = config.logger || new Logger();
 
         this._config                  = extend(true, {}, EventClient.DefaultConfig, config);
@@ -33,7 +36,12 @@ class EventClient {
         this.OFF_DEATH = ON_DEATH(async (signal, err) => {
             this.logger.info(this.klassName, '#onDeath: Got signal: ' + signal, ' and error: ', err);
 
-            await this.dispose();
+            try {
+                await this.dispose();
+            } catch (e) {
+                this.logger.error(`${this.klassName}#onDeath: Call to EventClient#dispose failed with: `, e);
+            }
+
         });
 
         /**
@@ -99,14 +107,22 @@ class EventClient {
      */
     async dispose()
     {
-        const result = await Promise.all([
-            this.kafkaClient.dispose(),
-            this.amqpClient.dispose()
-        ]);
+        let result;
 
-        this.logger.info(`${this.klassName}#dispose: Return client disposes with result: `, result);
+        try {
+            result = await Promise.all([
+                this.kafkaClient.dispose(),
+                this.amqpClient.dispose()
+            ]);
 
-        this.OFF_DEATH();
+            this.OFF_DEATH();
+
+            instanceCnt--;
+        } catch (e) {
+            this.logger.info(`${this.klassName}#dispose: Disposing failed with exception `, e);
+        } finally {
+            this.logger.info(`${this.klassName}#dispose: Instance count: `, instanceCnt);
+        }
 
         return result;
     }

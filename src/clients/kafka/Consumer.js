@@ -102,19 +102,21 @@ class Consumer extends EventEmitter
             this._subjectRegistry.delete(topic);
 
         try {
-            if (this._consumer) {
+            if (this._consumer)
                 this._consumer.close(true);
-
-                process.nextTick(() => {
-                    this.consumer.consumer = null; // Workaround for sinek bug #101
-                    this._consumer = null;
-                });
-            }
 
             ok = true;
         } catch (e) {
             this.logger.error('Consumer#dispose: Failed to close the consumer with exception. ', e);
             ok = false;
+        } finally {
+            process.nextTick(() => {
+                if (this.consumer && this.consumer.consumer)
+                    this.consumer.consumer = null; // Workaround for sinek bug #101
+
+                if (this.consumer)
+                    this._consumer = null;
+            });
         }
 
         return ok;
