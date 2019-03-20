@@ -170,11 +170,14 @@ describe('KafkaClient single instance tests', () => {
             const msg = `ping ${Date.now()}`;
             const receivedMessages = [];
 
-            await client.subscribe('test.rabbitproducing#', (message) => {
+            const randStr = Math.random().toString(36).substring(8);
+            const topic = `test.rabbitproducing${randStr}`;
+
+            await client.subscribe(`${topic}#`, (message) => {
                 receivedMessages.push(message);
             }, {}, true);
 
-            await client.publish('test.rabbitproducing.ping', msg, null, {}, true);
+            await client.publish(`${topic}.ping`, msg, null, {}, true);
 
             let ok = await retry(() => {
 

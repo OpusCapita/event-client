@@ -15,6 +15,8 @@ class Consumer extends EventEmitter
 
         this.config = config;
 
+        this._connectionConfig = null; // Will be set by Calling Consumer#connect
+
         this._logger           = config.logger || new Logger();
         this._consumer         = null;
         this._analyticsReady   = false;
@@ -80,7 +82,29 @@ class Consumer extends EventEmitter
      */
     connect(config)
     {
-        return this._connect(config);
+        if (this._connectionConfig === null || this._connectionConfig !== config)
+            this._connectionConfig = config;
+
+        return this._connect(this._connectionConfig);
+    }
+
+    /**
+     * Reconnect to kafka.
+     *
+     * @public
+     * @function connect
+     * @param {object} config
+     * @param {string} config.host - Kafka node to connect to. Uses internal service discovery to find other kafka nodes.
+     * @param {string} config.port - Kafka port.
+     * @returns {Promise}
+     * @fulfil {boolean}
+     * @reject {Error}
+     */
+    async reconnect(config) {
+        await this.consumer.close();
+        await this.connect(config || this._connectionConfig);
+
+        return true;
     }
 
     /**
@@ -110,7 +134,7 @@ class Consumer extends EventEmitter
             this.logger.error('Consumer#dispose: Failed to close the consumer with exception. ', e);
             ok = false;
         } finally {
-            process.nextTick(() => {
+            setImmediate(() => {
                 if (this.consumer && this.consumer.consumer)
                     this.consumer.consumer = null; // Workaround for sinek bug #101
 
@@ -385,7 +409,9 @@ class Consumer extends EventEmitter
                 'client.id': 'event-client',
                 // 'enable.auto.commit': true,
                 //'debug': 'all',
-                'event_cb': true
+                'event_cb': true,
+                'metadata.max.age.ms': 1000,
+                'topic.metadata.refresh.interval.ms': 1000
             },
             tconf: {
                 'auto.offset.reset': 'largest'

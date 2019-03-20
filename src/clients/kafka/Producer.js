@@ -84,7 +84,7 @@ class Producer extends EventEmitter
         } catch (e) {
             this.logger.error('Producer#dispose: Failed to close the producers with exception. ', e);
         } finally {
-            process.nextTick(() => {
+            setImmediate(() => {
                 if (this._producer && this._producer.producer)
                     this._producer.producer = null; // Workaround for sinek bug #101
 
