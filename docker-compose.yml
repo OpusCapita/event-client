@@ -6,7 +6,7 @@ services:
             - registrator
             - rabbit2
             - consul
-            - kafka3
+            - kafka1
             - zoo3
         environment:
             RABBITMQ_USER: $RABBITMQ_USER
@@ -95,7 +95,7 @@ services:
             KAFKA_BROKER_ID: 1
             # KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
             KAFKA_NUM_PARTITIONS: 10
-            KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+            KAFKA_DEFAULT_REPLICATION_FACTOR: 1
             KAFKA_PORT: 9092
             KAFKA_ADVERTISED_HOST_NAME: 'kafka1'
             KAFKA_LISTENERS: 'PLAINTEXT://:9092'
@@ -104,42 +104,42 @@ services:
         depends_on:
             - zoo1
 
-    kafka2:
-        image: wurstmeister/kafka
-        ports:
-            - '9093:9093'
-        environment:
-            KAFKA_BROKER_ID: 2
-            # KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
-            KAFKA_NUM_PARTITIONS: 10
-            KAFKA_DEFAULT_REPLICATION_FACTOR: 3
-            KAFKA_PORT: 9093 # Needed for automatic topic creation ... m(
-            KAFKA_ADVERTISED_HOST_NAME: 'kafka2'
-            KAFKA_LISTENERS: 'PLAINTEXT://:9093'
-            KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka2:9093'
-            KAFKA_ZOOKEEPER_CONNECT: zoo1:2181
-        depends_on:
-            - zoo2
-            - kafka1
+    # kafka2:
+    #     image: wurstmeister/kafka
+    #     ports:
+    #         - '9093:9093'
+    #     environment:
+    #         KAFKA_BROKER_ID: 2
+    #         # KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+    #         KAFKA_NUM_PARTITIONS: 10
+    #         KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+    #         KAFKA_PORT: 9093 # Needed for automatic topic creation ... m(
+    #         KAFKA_ADVERTISED_HOST_NAME: 'kafka2'
+    #         KAFKA_LISTENERS: 'PLAINTEXT://:9093'
+    #         KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka2:9093'
+    #         KAFKA_ZOOKEEPER_CONNECT: zoo1:2181
+    #     depends_on:
+    #         - zoo2
+    #         - kafka1
 
-    kafka3:
-        image: wurstmeister/kafka
-        ports:
-            - '9094:9094'
-        environment:
-            KAFKA_BROKER_ID: 3
-            # KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
-            KAFKA_NUM_PARTITIONS: 10
-            KAFKA_DEFAULT_REPLICATION_FACTOR: 3
-            KAFKA_PORT: 9094 # Needed for automatic topic creation ... m(
-            KAFKA_ADVERTISED_HOST_NAME: 'kafka3'
-            KAFKA_LISTENERS: 'PLAINTEXT://:9094'
-            KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka3:9094'
-            KAFKA_ZOOKEEPER_CONNECT: zoo1:2181
-            # KAFKA_CREATE_TOPICS: "test:10:3,second:2:2,pattern.one:10:3,pattern.two:10:3"
-        depends_on:
-            - zoo3
-            - kafka2
+    # kafka3:
+    #     image: wurstmeister/kafka
+    #     ports:
+    #         - '9094:9094'
+    #     environment:
+    #         KAFKA_BROKER_ID: 3
+    #         # KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+    #         KAFKA_NUM_PARTITIONS: 10
+    #         KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+    #         KAFKA_PORT: 9094 # Needed for automatic topic creation ... m(
+    #         KAFKA_ADVERTISED_HOST_NAME: 'kafka3'
+    #         KAFKA_LISTENERS: 'PLAINTEXT://:9094'
+    #         KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka3:9094'
+    #         KAFKA_ZOOKEEPER_CONNECT: zoo1:2181
+    #         # KAFKA_CREATE_TOPICS: "test:10:3,second:2:2,pattern.one:10:3,pattern.two:10:3"
+    #     depends_on:
+    #         - zoo3
+    #         - kafka2
 
     registrator:
         image: gliderlabs/registrator
