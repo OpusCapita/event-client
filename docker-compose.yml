@@ -3,11 +3,11 @@ services:
     main:
         build: .
         depends_on:
+            - zoo3
             - registrator
             - rabbit2
             - consul
             - kafka1
-            - zoo3
         environment:
             RABBITMQ_USER: $RABBITMQ_USER
             RABBITMQ_PASS: $RABBITMQ_PASS
@@ -101,8 +101,9 @@ services:
             KAFKA_LISTENERS: 'PLAINTEXT://:9092'
             KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka1:9092'
             KAFKA_ZOOKEEPER_CONNECT: zoo1:2181
+            KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS: 30001
         depends_on:
-            - zoo1
+            - zoo3
 
     # kafka2:
     #     image: wurstmeister/kafka
