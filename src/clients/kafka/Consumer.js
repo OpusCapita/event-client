@@ -410,7 +410,7 @@ class Consumer extends EventEmitter
                 // 'enable.auto.commit': true,
                 //'debug': 'all',
                 'event_cb': true,
-                'metadata.max.age.ms': 1000,
+                'metadata.max.age.ms': 10000,
                 'topic.metadata.refresh.interval.ms': 1000
             },
             tconf: {

@@ -189,7 +189,7 @@ describe('KafkaClient multi instance tests', () => {
                         resolve();
                     else
                         throw new Error();
-                }, {'max_tries': 80, interval: 500 }).catch(reject);
+                }, {'max_tries': 140, interval: 500 }).catch(reject);
             });
         });
 

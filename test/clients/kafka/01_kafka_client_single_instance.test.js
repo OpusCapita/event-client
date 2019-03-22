@@ -186,7 +186,7 @@ describe('KafkaClient single instance tests', () => {
                 else
                     return Promise.reject(new Error('Message not yet received'));
 
-            }, {'max_tries': 50, interval:500}); // Long wait interval, kafka rebalancing takes some time
+            }, {'max_tries': 140, interval:500}); // Long wait interval, kafka rebalancing takes some time
 
             assert(ok);
         });
@@ -208,7 +208,7 @@ describe('KafkaClient single instance tests', () => {
                 else
                     return Promise.reject(new Error('Message not yet received'));
 
-            }, {'max_tries': 80, interval: 500}); // Long wait interval, kafka rebalancing takes some time
+            }, {'max_tries': 140, interval: 500}); // Long wait interval, kafka rebalancing takes some time
 
             assert(ok);
         });
@@ -228,7 +228,7 @@ describe('KafkaClient single instance tests', () => {
                 } else {
                     return Promise.reject(new Error('Message not yet received'));
                 }
-            }, {'max_tries': 50, interval: 500}); // Long wait interval, kafka rebalancing takes some time
+            }, {'max_tries': 140, interval: 500}); // Long wait interval, kafka rebalancing takes some time
 
             assert(receivedCtx.hasOwnProperty('chuck'));
         });
