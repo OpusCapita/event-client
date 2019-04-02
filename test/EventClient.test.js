@@ -130,7 +130,7 @@ describe('EventClient', () => {
             });
         });
 
-        describe.only('with Kafka', () => {
+        describe('with Kafka', () => {
             let client;
 
             beforeEach(async () => {
