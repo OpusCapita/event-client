@@ -101,12 +101,20 @@ describe('EventClient', () => {
                 client && await client.dispose(); client = null;
             });
 
+            // after(() => {
+            //     const timers = process._getActiveHandles().filter((handle) => {
+            //         return Object.prototype.toString.call(handle) === '[object Timer]';
+            //     });
+            //     console.log(timers);
+            // });
+
             it('Should publish messages to a topic.', async () => {
                 const msg = `ping ${Date.now()}`;
                 const receivedMessages = [];
 
                 await client.subscribe('event-client.test.producing', (message, headers, topic, routingKey) => {
                     receivedMessages.push(message);
+                    return true;
                 });
 
                 await client.publish('event-client.test.producing', msg);
@@ -122,7 +130,7 @@ describe('EventClient', () => {
             });
         });
 
-        describe('with Kafka', () => {
+        describe.only('with Kafka', () => {
             let client;
 
             beforeEach(async () => {
@@ -138,13 +146,18 @@ describe('EventClient', () => {
                 client && await client.dispose(); client = null;
             });
 
+            // after(() => {
+            //     const timers = process._getActiveHandles().filter((handle) => {
+            //         return Object.prototype.toString.call(handle) === '[object Timer]';
+            //     });
+            //     console.log(timers);
+            // });
+
             it('Should publish messages to a topic.', async () => {
                 const topic = 'event-client.test';
 
                 const msg = `ping ${Date.now()}`;
                 const receivedMessages = [];
-
-                await client.init();
 
                 await client._kafkaClient.consumer.createTopic(topic, 15000);
                 await client.subscribe('event-client.#', (message) => {

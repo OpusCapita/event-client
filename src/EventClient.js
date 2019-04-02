@@ -56,11 +56,10 @@ class EventClient {
          */
         return new Proxy(self, {
             get(target, key) {
-                if (!Reflect.has(self, key)) {
+                if (!Reflect.has(self, key))
                     self.logger.warn(`${self.klassName}: Getter for undefined property ${key} called.`);
-                } else {
+                else
                     return target[key];
-                }
             }
         });
     }
@@ -69,7 +68,9 @@ class EventClient {
 
     get logger()
     {
-        if (!this._logger) { this._logger = new Logger(); }
+        if (!this._logger)
+            this._logger = new Logger();
+
         return this._logger;
     }
 
@@ -171,9 +172,8 @@ class EventClient {
      */
     async publish(routingKey, message, context = null, opts = {})
     {
-        if (!opts.kafkaPartitionKey) {
+        if (!opts.kafkaPartitionKey)
             this.logger.warn(this.klassName, '#publish: Publishing a message without a partition key.');
-        }
 
         if (this.config.sendWith === 'rabbitmq') {
             return await this.amqpClient.emit(routingKey, message, context, opts);

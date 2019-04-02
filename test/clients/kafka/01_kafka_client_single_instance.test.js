@@ -157,6 +157,13 @@ describe('KafkaClient single instance tests', () => {
             client && await client.dispose(); client = null;
         });
 
+        after(() => {
+            const timers = process._getActiveHandles().filter((handle) => {
+                return Object.prototype.toString.call(handle) === '[object Timer]';
+            });
+            console.log(timers);
+        });
+
         it('Should create topics before publishing to them.', async () => {
             await client.init();
 

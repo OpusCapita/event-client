@@ -94,12 +94,11 @@ class Producer extends EventEmitter
      */
     async dispose()
     {
-        if (messageStatusTracker.size >= 0) {
+        if (messageStatusTracker.size > 0)
             this.logger && this.logger.error(`${this.klassName}#dispose: Dispose called but there are ${messageStatusTracker.size} messages in-flight or failed.`);
-        }
 
         try {
-            if (this._producer) 
+            if (this._producer)
                 await this._producer.close(true);
         } catch (e) {
             this.logger.error('Producer#dispose: Failed to close the producers with exception. ', e);

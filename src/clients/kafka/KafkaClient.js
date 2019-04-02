@@ -340,6 +340,9 @@ class KafkaClient
      */
     async _initConsumer()
     {
+        if (this._consumer)
+            return true;
+
         this._consumer = new Consumer(this.config);
 
         let connectionConfig = await this._getMqConfig();
@@ -361,6 +364,9 @@ class KafkaClient
      */
     async _initProducer()
     {
+        if (this._producer)
+            return true;
+
         this._producer = new Producer(this.config);
 
         let connectionConfig = await this._getMqConfig();
