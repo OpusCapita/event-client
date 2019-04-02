@@ -1,15 +1,23 @@
 version: '2'
 services:
-  main:
-    command: 'npm run debug'
-    ports:
-        - "9230:9230"
-    environment:
-        - CONSUMER_GROUP_ID=alpha
-    volumes:
-        - ./package.json:/home/node/event-client/package.json
-        - ./coverage:/home/node/event-client/coverage
-        - ./src:/home/node/event-client/src
-        - ./test:/home/node/event-client/test
-        - ./local:/home/node/event-client/local
-        - ./wiki:/home/node/event-client/wiki
+    main:
+        command: 'npm run debug'
+        ports:
+            - "9230:9230"
+        environment:
+            - CONSUMER_GROUP_ID=alpha
+        volumes:
+            - ./package.json:/home/node/event-client/package.json
+            - ./coverage:/home/node/event-client/coverage
+            - ./src:/home/node/event-client/src
+            - ./test:/home/node/event-client/test
+            - ./local:/home/node/event-client/local
+            - ./wiki:/home/node/event-client/wiki
+    kafka_manager:
+        image: hlebalbau/kafka-manager:stable
+        ports:
+            - "9000:9000"
+        environment:
+            ZK_HOSTS: "zoo1:2181"
+            APPLICATION_SECRET: "random-secret"
+            command: -Dpidfile.path=/dev/null

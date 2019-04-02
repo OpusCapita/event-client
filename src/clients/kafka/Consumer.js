@@ -89,6 +89,31 @@ class Consumer extends EventEmitter
     }
 
     /**
+     * Create a topic and wait for its creation.
+     * Workaround until sinek also exposes the node-rdkafka admin client.
+     *
+     * @param {string} topic - Topic name that should be created
+     * @param {number} timeout - Timeout to wait for in ms
+     */
+    async createTopic(topic, timeout = 10000)
+    {
+        // Create topic
+        await this._consumer.getTopicMetadata(topic);
+
+        // await creation of topic
+        return retry(async () => {
+            const meta   = await this._consumer.getTopicMetadata(topic);
+            const topics = (meta.raw || {}).topics || [];
+            const idx    = topics.findIndex(t => t.name === topic);
+
+            if (idx >= 0)
+                Promise.resolve(true);
+            else
+                return Promise.reject(false);
+        }, {timeout, interval: 500});
+    }
+
+    /**
      * Reconnect to kafka.
      *
      * @public
@@ -100,7 +125,8 @@ class Consumer extends EventEmitter
      * @fulfil {boolean}
      * @reject {Error}
      */
-    async reconnect(config) {
+    async reconnect(config)
+    {
         await this.consumer.close();
         await this.connect(config || this._connectionConfig);
 
@@ -414,7 +440,8 @@ class Consumer extends EventEmitter
                 'topic.metadata.refresh.interval.ms': 1000
             },
             tconf: {
-                'auto.offset.reset': 'largest'
+                'auto.offset.reset': 'latest',
+                'request.required.acks': -1
             }
         });
     }

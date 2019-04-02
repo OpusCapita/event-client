@@ -5,7 +5,22 @@ const extend = require('extend');
 const crypto = require('crypto');
 const {ProducerError} = require('./err');
 
-/** Producer class - interface to the sinek producer implementation. */
+/**
+ * Storage for in-flight or failed messages.
+ *
+ * - On sending a message the producer stores it to the messageStatusTracker with a
+ *   delivery status ('delivered') set to 'null'. This means the message is in flight and
+ *   no delivery report was received so far.
+ * - Messages that are delivered successful will be removed from the tracker.
+ * - For messages that come back with an errornous delivery state the delivery state is set to 'false'
+ *
+ * Every message that still is in the tracker after the timeout should be considered to have failed.
+ */
+const messageStatusTracker = new Map();
+
+/**
+ * Producer class - interface to the sinek producer implementation.
+ */
 class Producer extends EventEmitter
 {
 
@@ -26,6 +41,7 @@ class Producer extends EventEmitter
 
     get klassName() { return this.constructor.name || 'Producer'; }
     get knownTopics() { return this._knownTopics; }
+    get messageStatusTracker () { return messageStatusTracker; }
 
     /** *** SETTER *** */
 
@@ -78,6 +94,10 @@ class Producer extends EventEmitter
      */
     async dispose()
     {
+        if (messageStatusTracker.size >= 0) {
+            this.logger && this.logger.error(`${this.klassName}#dispose: Dispose called but there are ${messageStatusTracker.size} messages in-flight or failed.`);
+        }
+
         try {
             if (this._producer) 
                 await this._producer.close(true);
@@ -242,7 +262,7 @@ class Producer extends EventEmitter
             noptions: {
                 //'debug': 'all',
                 'metadata.broker.list': `${config.host}:${config.port}`,
-                'client.id': 'event-client-2000',
+                'client.id': 'event-client',
                 'event_cb': true,
                 'compression.codec': 'none',
                 'retry.backoff.ms': 200,
@@ -253,9 +273,46 @@ class Producer extends EventEmitter
                 'batch.num.messages': 1000000,
             },
             tconf: {
-                'request.required.acks': 1
+                'request.required.acks': -1,
+                'message.timeout.ms': 300000 // This needs to be set to a value that is longer than rebalancing may take
             }
         }, null, defaultPartitionCount);
+    }
+
+    /**
+     * Eventlistener for delivery reports. This is a workaround because
+     * sinek does not yet provide an interface for this.
+     *
+     * @private
+     * @param {KafkaError} error - The error from librdkafka
+     * @param {object} report - Object containing structural delivery information
+     */
+    _onProducerDeliveryReport(error, report) {
+        if (report && report.key) {
+            const key = Buffer(report.key).toString();
+            const status = messageStatusTracker.get(key);
+
+            if (status) {
+                this.logger && this.logger.log(`Message with key ${key} found.`);
+
+                if (error) {
+                    this.logger && this.logger.error('Failed to deliver message. ', status.message);
+
+                    messageStatusTracker.set(key, {
+                        ...report,
+                        message: status.message,
+                        error: error,
+                        delivered: false
+                    });
+                } else {
+                    // Delete message from tracker
+                    messageStatusTracker.delete(key);
+                }
+
+            } else {
+                this.logger && this.logger.error(`Message with key ${key} not found!`);
+            }
+        }
     }
 
     /**
@@ -277,12 +334,19 @@ class Producer extends EventEmitter
      * @param {object} message - @see publish
      * @return {Promise}
      */
-    _publish(topic, message) {
+    async _publish(topic, message) {
         let result = null;
 
         try {
             const payload = Buffer.from(JSON.stringify(message));
-            result = this._producer.send(topic, payload, null, null, message.properties.partitionKey, message.properties.appId);
+            result = await this._producer.send(topic, payload, null, null, message.properties.partitionKey, message.properties.appId);
+
+            if (result.key) {
+                messageStatusTracker.set(result.key, {
+                    delivered: null,
+                    message
+                }); // Null indicates that message is in-flight and no delivery information was received.
+            }
         } catch (e) {
             this.logger && this.logger.error('Producer#publish: Failed to send message with exception.', e, message);
             throw e;
@@ -295,10 +359,10 @@ class Producer extends EventEmitter
      * @private
      * @function _registerProducerListeners
      */
-    _registerProducerListeners()
-    {
+    _registerProducerListeners() {
         this._producer.once('analytics', () => this._analyticsReady = true);
         this._producer.on('error', this._onProducerError.bind(this));
+        this._producer.producer.on('delivery-report', this._onProducerDeliveryReport.bind(this)); 
     }
 }
 

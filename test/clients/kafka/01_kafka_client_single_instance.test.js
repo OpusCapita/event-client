@@ -15,13 +15,12 @@ const KafkaClient      = require('../../../src/clients/kafka/');
 const {ConsumerError}  = require('../../../src/clients/kafka/err/');
 
 const consulOverride = {
-    host:  'kafka1',
-    port: 9092
+    hosts: 'kafka1:9092,kafka2:9093,kafka3:9094'
 };
 
 const eventClientFactory = (config) => {
     return new KafkaClient(extend(true, {
-        serviceName: 'event-client-2000',
+        serviceName: 'event-client-test',
         consumerGroupId: 'test',
         consulOverride,
         logger: Logger.DummyLogger
@@ -29,6 +28,7 @@ const eventClientFactory = (config) => {
 };
 
 const noopFn = () => {};
+const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
 
 describe('KafkaClient single instance tests', () => {
 
@@ -57,11 +57,11 @@ describe('KafkaClient single instance tests', () => {
         });
 
         it('Should setup the service name via configService', () => {
-            assert.equal(client.config.serviceName, 'event-client-2000');
+            assert.equal(client.config.serviceName, 'event-client-test');
         });
 
         it('Should set the consumer group to the service name.', () => {
-            assert.equal(client.config.consumerGroupId, 'event-client-2000');
+            assert.equal(client.config.consumerGroupId, 'event-client-test');
         });
 
         it('Should set the mqServiceName to kafka.', () => {
@@ -136,7 +136,7 @@ describe('KafkaClient single instance tests', () => {
         });
 
         // TODO check if this is fixed in v6.27.0
-        it('Should successfully remove all transactions (sinek bug workaround test).', async () => { 
+        it('Should successfully remove all transactions (sinek bug workaround test).', async () => {
             await client.subscribe('test.unsubscribe.all', () => true, {}, true);
             assert(client.consumer._subjectRegistry.get('^test\\.unsubscribe$').size === 1);
 
@@ -171,12 +171,31 @@ describe('KafkaClient single instance tests', () => {
             const receivedMessages = [];
 
             const randStr = Math.random().toString(36).substring(8);
-            const topic = `test.rabbitproducing${randStr}`;
+            const topic = `test.rabbitproducing-${randStr}`;
 
+            await client.init();
+
+            /**
+             * Creating the topic first manually so that the combination of
+             * the following Consumer configurations works:
+             *
+             *   - 'topic.metadata.refresh.interval.ms': 1000
+             *   -  'auto.offset.reset': 'latest',
+             *
+             * If we do not do this we will create a race condition
+             * between metadata fetching (and actual reading from the topic
+             * that is created by #publish) and publishing to the topic.
+             * If we publish before we got the correct metadata 'latest'
+             * will not fetch the message because it was there before we started
+             * to read from the topic.
+             */
+            await client.consumer.createTopic(topic, 15000);
             await client.subscribe(`${topic}#`, (message) => {
                 receivedMessages.push(message);
+                return true;
             }, {}, true);
 
+            await sleep(5000); // Time for rebalance, otherwise race condition between latest and earlist will hit again
             await client.publish(`${topic}.ping`, msg, null, {}, true);
 
             let ok = await retry(() => {
@@ -192,14 +211,34 @@ describe('KafkaClient single instance tests', () => {
         });
 
         it('Should allow to publish to kafka topics w/o converting the topic.', async () => {
+            const topic = 'test.producing.ping';
+
             const msg = `ping ${Date.now()}`;
             const receivedMessages = [];
 
-            await client.subscribe('test.producing.ping', (message) => {
+            await client.init();
+
+            /**
+             * Creating the topic first manually so that the combination of
+             * the following Consumer configurations works:
+             *
+             *   - 'topic.metadata.refresh.interval.ms': 1000
+             *   -  'auto.offset.reset': 'latest',
+             *
+             * If we do not do this we will create a race condition
+             * between metadata fetching (and actual reading from the topic
+             * that is created by #publish) and publishing to the topic.
+             * If we publish before we got the correct metadata 'latest'
+             * will not fetch the message because it was there before we started
+             * to read from the topic.
+             */
+            await client.consumer.createTopic(topic, 15000);
+            await client.subscribe(topic, (message) => {
                 receivedMessages.push(message);
             });
 
-            await client.publish('test.producing.ping', msg, null, {});
+            await sleep(5000); // Time for rebalance, otherwise race condition between latest and earlist will hit again
+            await client.publish(topic, msg, null, {});
 
             let ok = await retry(() => {
 
@@ -214,20 +253,28 @@ describe('KafkaClient single instance tests', () => {
         });
 
         it('Messages should allow custom context to be applied to the mesasge.', async () => {
+            const topic = 'test.producing';
+
             const msg = `ping ${Date.now()}`;
             const ctx = {chuck: 'testa'};
 
             const receivedMessages = new Map();
 
-            await client.subscribe('test.producing', (message, context) => receivedMessages.set(message, context));
+            await client.init();
+
+            await client.consumer.createTopic(topic, 15000);
+            await client.subscribe(topic, (message, context) => receivedMessages.set(message, context));
+
+            await sleep(5000); // Time for rebalance, otherwise race condition between latest and earlist will hit again
             await client.publish('test.producing', msg, ctx);
 
             let receivedCtx = await retry(() => {
-                if (receivedMessages.has(msg) && receivedMessages) {
+
+                if (receivedMessages.has(msg) && receivedMessages)
                     return Promise.resolve(receivedMessages.get(msg));
-                } else {
+                else
                     return Promise.reject(new Error('Message not yet received'));
-                }
+
             }, {'max_tries': 140, interval: 500}); // Long wait interval, kafka rebalancing takes some time
 
             assert(receivedCtx.hasOwnProperty('chuck'));

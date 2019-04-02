@@ -24,7 +24,7 @@ const eventClientFactory = (config) => {
     }, config));
 };
 
-// const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
+const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
 
 describe('EventClient', () => {
 
@@ -139,14 +139,20 @@ describe('EventClient', () => {
             });
 
             it('Should publish messages to a topic.', async () => {
+                const topic = 'event-client.test';
+
                 const msg = `ping ${Date.now()}`;
                 const receivedMessages = [];
 
+                await client.init();
+
+                await client._kafkaClient.consumer.createTopic(topic, 15000);
                 await client.subscribe('event-client.#', (message) => {
                     receivedMessages.push(message);
                     return true;
                 });
 
+                await sleep(5000); // Time for rebalance, otherwise race condition between latest and earlist will hit again
                 await client.publish('event-client.test.producing', msg);
 
                 let ok = await retry(() => {
@@ -154,13 +160,12 @@ describe('EventClient', () => {
                         return Promise.resolve(true);
                     else
                         return Promise.reject(new Error('Message not yet received'));
-                }, {max_tries: 50, interval: 500 }); // Long wait interval, kafka rebalancing takes some time
+                }, {'max_tries': 50, interval: 500 }); // Long wait interval, kafka rebalancing takes some time
 
                 assert(ok);
             });
 
             it('Should send messages that are not handled by the application to the DLQ.');
-            
         });
 
     });

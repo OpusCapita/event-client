@@ -20,9 +20,9 @@ function main() {
             consumerGroupId: process.env.CONSUMER_GROUP_ID || 'event-client',
             logger: new Logger(),
             consulOverride: {
-                kafkaHost: 'kafka1',
-                kafkaPort: 9092
-                // hosts: 'kafka1:9092,kafka2:9093,kafka3:9094'
+                // kafkaHost: 'kafka',
+                // kafkaPort: 9092
+                hosts: 'kafka1:9092,kafka2:9093,kafka3:9094'
             }
         };
 
@@ -30,11 +30,34 @@ function main() {
         await cs1.init();
         global.ec1 = cs1;
 
+        // cs1._kafkaClient.producer._producer.producer.on('delivery-report', (err, report) => {
+        //     if (err) {
+        //         console.log('> Delivery error report', err);
+        //     } else {
+        //         console.log('> Delivery successful.');
+        //     }
+
+        //     if (report && report.key) {
+        //         const key = Buffer(report.key).toString();
+
+        //         const idx = messagesSent.findIndex((m => m.key === key));
+
+        //         if (idx && idx >= 0) {
+        //             console.log(`> Message with key ${key} found.`);
+        //             messagesSent[idx].delivered = err !== null ? false : true;
+        //         } else {
+        //             console.log(`> Message with key ${key} not found!`);
+        //         }
+
+        //     }
+
+        //     deliveryReports.push({err, report});
+        // })
+
         let cnt = 0;
         global.sendFn = async () => {
             console.log('Publishing #', cnt);
-            const result = await cs1.publish('event-client.kdlal.test1', `${Date.now()} - ${cnt++}`, {'custom': 'context'});
-            console.log(result);
+            await cs1.publish('event-client.kdlal.test1', `${Date.now()} - ${cnt++}`, {'custom': 'context'});
             return true;
         };
 
@@ -74,6 +97,7 @@ function main() {
 
         await cs2.subscribe('event-client.#', (message, headers) => {
             console.log('CS2: Received message: ', message, '-', headers);
+            return true;
         }).catch(console.error);
 
 
@@ -97,9 +121,9 @@ function main() {
         // }, 5000);
 
         setInterval(() => {
-            console.log('keepalive');
+            // console.log('keepalive');
             sendFn();
-        }, 6000);
+        }, 5000);
 
         resolve(true);
     });
