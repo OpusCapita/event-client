@@ -209,7 +209,7 @@ class Consumer extends EventEmitter
     async subscribe(subject, callback = null, opts = {}, convertTopic = false)
     {
         const topicSubscription = convertTopic ? (KafkaHelper.getTopicFromRoutingKey(subject)).source : subject;
- 
+
         const convertedSubject = (KafkaHelper.convertRabbitWildcard(subject)).source; // FIXME This should be done in EventClient not here, check that subject is a valid subscription but do not convert
 
         if (this._subjectRegistry.has(topicSubscription) && this._subjectRegistry.has(topicSubscription)) {
@@ -530,24 +530,26 @@ class Consumer extends EventEmitter
                         try {
                             result = await retry(async () => {
 
-                                const result = await callback(payload, context, message.topic, rabbitRoutingKey);
-                                if (result !== true)
+                                // Trigger the application callback
+                                const cbResult = await callback(payload, context, message.topic, rabbitRoutingKey, message.key);
+
+                                if (cbResult !== true)
                                     throw new Error('Application callback returned a value other than true.');
-                                return result;
+
+                                return cbResult;
 
                             }, {'max_tries': 3});
                         } catch (e) {
-                            if (result !== true && !message.topic.startsWith('dlq__')) {
+                            if (result !== true && !message.topic.startsWith('dlq__'))
                                 requeMessage = true;
-                            }
 
                             this.logger.error(this.klassName, '#_onConsumerMessage: Calling the registered callback for topic ', message.topic, ' failed with exception.', e);
                             requeMessage = true;
                         }
 
-                        if (requeMessage) {
+                        if (requeMessage)
                             this.emit('dlqmessage', message);
-                        }
+
                     }
                 }
 
