@@ -15,6 +15,8 @@ const {ProducerError} = require('./err');
  * - For messages that come back with an errornous delivery state the delivery state is set to 'false'
  *
  * Every message that still is in the tracker after the timeout should be considered to have failed.
+ *
+ * @todo Better use one messageStatusTracker per instance and not share it on module level for all instances?
  */
 const messageStatusTracker = new Map();
 
@@ -41,7 +43,7 @@ class Producer extends EventEmitter
 
     get klassName() { return this.constructor.name || 'Producer'; }
     get knownTopics() { return this._knownTopics; }
-    get messageStatusTracker () { return messageStatusTracker; }
+    get messageStatusTracker() { return messageStatusTracker; }
 
     /** *** SETTER *** */
 
@@ -59,13 +61,11 @@ class Producer extends EventEmitter
      */
     async checkHealth()
     {
-        if (!this._producer) {
+        if (!this._producer)
             throw new ProducerError('Initialize producer before accessing health information.', 'ENOTINITIALIZED');
-        }
 
-        if (typeof this._producer.checkHealth !== 'function') {
+        if (typeof this._producer.checkHealth !== 'function')
             throw new ProducerError('Not supported.', 'ENOTSUPPORTED');
-        }
 
         return this._producer.checkHealth();
     }
@@ -183,9 +183,8 @@ class Producer extends EventEmitter
      */
     async _connect(config)
     {
-        if (this._producer) {
+        if (this._producer)
             return this._doConnect();
-        };
 
         this._producer = await this._createProducer(config);
 
@@ -223,7 +222,7 @@ class Producer extends EventEmitter
 
     /**
      * Dispatcher method that calls creates the underlying producer based on the second parameter.
-     * Only native producer is implemented right now.
+     * Only native producer is supported right now.
      *
      * @private
      * @function _createProducer
@@ -235,9 +234,8 @@ class Producer extends EventEmitter
      */
     _createProducer(config, useNative = true)
     {
-        if (useNative) {
+        if (useNative)
             return this._createNativeProducer(config);
-        }
     }
 
     /**
@@ -291,11 +289,12 @@ class Producer extends EventEmitter
             const key = Buffer(report.key).toString();
             const status = messageStatusTracker.get(key);
 
+            this.logger && this.logger.debug(`${this.klassName}: Delivery report for message ${key} received.`);
+
             if (status) {
-                this.logger && this.logger.log(`Message with key ${key} found.`);
 
                 if (error) {
-                    this.logger && this.logger.error('Failed to deliver message. ', status.message);
+                    this.logger && this.logger.error(`${this.klassName}: Failed to deliver message ${key} - `, status.message);
 
                     messageStatusTracker.set(key, {
                         ...report,
@@ -309,7 +308,8 @@ class Producer extends EventEmitter
                 }
 
             } else {
-                this.logger && this.logger.error(`Message with key ${key} not found!`);
+                // Received a message that was not sent from this client - this should not happen.
+                this.logger && this.logger.error(`${this.klassName}: Message ${key} not found in local outgoing messages cache!`);
             }
         }
     }
@@ -361,7 +361,7 @@ class Producer extends EventEmitter
     _registerProducerListeners() {
         this._producer.once('analytics', () => this._analyticsReady = true);
         this._producer.on('error', this._onProducerError.bind(this));
-        this._producer.producer.on('delivery-report', this._onProducerDeliveryReport.bind(this)); 
+        this._producer.producer.on('delivery-report', this._onProducerDeliveryReport.bind(this));
     }
 }
 
