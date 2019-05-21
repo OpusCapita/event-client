@@ -19,7 +19,10 @@ async function main() {
     consulOverride.password = password;
 
     const client = new EventClient({logger: new Logger()});
+    const client2 = new EventClient({logger: new Logger()});
+
     global.ec = client;
+    global.ec2 = client2;
 
     const routingKey1 = 'event-client.testone';
     const routingKey2 = 'event-client.testtwo';
