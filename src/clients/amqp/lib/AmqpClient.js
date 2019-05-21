@@ -31,6 +31,9 @@ class AmqpClient
         this.callbackErrorCount = {};
 
         this._logger = this.config.logger || new Logger();
+
+        this._onEndpointChangedBound = this._onEndpointChanged.bind(this);
+        this._onPropertyChangedBound = this._onPropertyChanged.bind(this);
     }
 
     /**
@@ -40,15 +43,12 @@ class AmqpClient
      * @function
      * @returns {Logger}
      */
-    get logger()
-    {
-        if (!this._logger) {
+    get logger() {
+        if (!this._logger)
             this._logger = new Logger();
-        }
 
         return this._logger;
     }
-    get klassName() { return this.constructor.name || 'KafkaClient'; }
 
     /**
      * Makes some basic initializations like exchange creation as they are automatically done by emitting the first event.
@@ -503,8 +503,8 @@ class AmqpClient
         {
             const hadChannelOrConnection = (this.channels.length || this.publisherConnection || this.consumerConnection) ? true : false;
 
-            this.onEndpointChanged && configService.removeListener('endpointChanged', this.onEndpointChanged);
-            this.onPropertyChanged && configService.removeListener('propertyChanged', this.onPropertyChanged);
+            this._onEndpointChangedBound && configService.removeListener('endpointChanged', this._onEndpointChangedBound);
+            this._onPropertyChangedBound && configService.removeListener('propertyChanged', this._onPropertyChangedBound);
 
             let channelClosePromises = this.channels.map((c) => {
                 return c.close().catch((e) => this.logger.error(`AmqpClient#dispose: Failed to close channel ${c.ch}`, e));
@@ -562,59 +562,30 @@ class AmqpClient
             const config = this.config.consul;
             const consul = await configService.init();
 
-            this.onEndpointChanged = async (serviceName) =>
-            {
-                if (serviceName === config.mqServiceName)
-                {
-                    this.logger.info(`Got on onEndpointChange event for service ${serviceName}.`);
-                    try {
-                        await this._doReconnect();
-                    } catch (e) {
-                        this.logger.error('AmqpClient#onEndpointChanged: Failed to call _doReconnect with exception. ', e);
-                    }
-                }
+            const {host, port} = await consul.getEndPoint(config.mqServiceName);
+            const [username, password] = await consul.get([config.mqUserKey, config.mqPasswordKey]);
+
+            if (!consul.listeners('endpointChanged').some((fn) => fn === this._onEndpointChangedBound))
+                consul.on('endpointChanged', this._onEndpointChangedBound);
+
+            if (!consul.listeners('propertyChanged').some((fn) => fn === this._onPropertyChangedBound))
+                consul.on('propertyChanged', this._onPropertyChangedBound);
+
+            return {
+                host,
+                port,
+                username,
+                password,
+                maxConnectTryCount: 10,
+                httpPort: 15672
             };
-
-            this.onPropertyChanged = async (key) =>
-            {
-                if (key === config.mqUserKey || key === config.mqPasswordKey)
-                {
-                    try {
-                        await this._doReconnect();
-                    } catch (e) {
-                        this.logger.error('AmqpClient#onPropertyChanged: Failed to call _doReconnect with exception. ', e);
-                    }
-                }
-            };
-
-            consul.on('endpointChanged', this.onEndpointChanged);
-            consul.on('propertyChanged', this.onPropertyChanged);
-
-            try {
-                const {host, port} = await consul.getEndPoint(config.mqServiceName);
-                const [username, password] = await consul.get([config.mqUserKey, config.mqPasswordKey]);
-
-                return {
-                    host,
-                    port,
-                    username,
-                    password,
-                    maxConnectTryCount: 10,
-                    httpPort: 15672
-                };
-            } catch (e) {
-                this.logger.error('AmqpClient#_getConfig: Failed to get all necessary data from consul.', e);
-                throw e;
-            }
         }
     }
 
     async _getNewChannel()
     {
         if (!this.consumerConnection)
-        {
             await this.init();
-        }
 
         const channel = new AmqpChannel(this.consumerConnection, this.logger, this.connectionConfig, {exchangeName: this.exchangeName});
         this.channels.push(channel);
@@ -640,18 +611,48 @@ class AmqpClient
         const {host, port} = await configService.getEndPoint(config.mqServiceName);
         const [username, password] = await configService.get([config.mqUserKey, config.mqPasswordKey]);
 
-        if (this.publisherConnection) {
+        if (this.publisherConnection)
             this.publisherConnection.setConfig({host, port, username, password});
-        }
 
-        if (this.consumerConnection) {
+        if (this.consumerConnection)
             this.consumerConnection.setConfig({host, port, username, password});
-        }
 
         return true;
     }
 
+    _onEndpointChanged(serviceName)
+    {
+        const config = this.config.consul;
+
+        if (serviceName === config.mqServiceName)
+        {
+            this.logger.info(`AmqpClient#_onEndpointChanged: Got on onEndpointChange event for service ${serviceName}.`);
+            try {
+                this._doReconnect();
+            } catch (e) {
+                this.logger.error('AmqpClient#_onEndpointChanged: Failed to call _doReconnect with exception. ', e);
+            }
+        }
+    }
+
+    _onPropertyChanged(key)
+    {
+        const config = this.config.consul;
+
+        if (key === config.mqUserKey || key === config.mqPasswordKey)
+        {
+            this.logger.info(`AmqpClient#_onPropertyChanged: Got on onPropertyChanged event for key ${key}.`);
+            try {
+                this._doReconnect();
+            } catch (e) {
+                this.logger.error('AmqpClient#_onPropertyChanged: Failed to call _doReconnect with exception. ', e);
+            }
+        }
+    }
+
 }
+
+module.exports = AmqpClient;
 
 /**
 * Static object representing a default configuration set.
@@ -698,5 +699,3 @@ AmqpClient.DefaultConfig = {
     context: {
     }
 };
-
-module.exports = AmqpClient;
