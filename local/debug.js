@@ -54,6 +54,8 @@ function main() {
         //     deliveryReports.push({err, report});
         // })
 
+        debugger;
+
         let cnt = 0;
         global.sendFn = async () => {
             console.log('Publishing #', cnt);
@@ -63,10 +65,13 @@ function main() {
 
         // console.log('::DEBUG::', await cs1._kafkaClient.producer._producer.getTopicMetadata('event-client.kdlal'));
 
-        const subRes1 = await cs1.subscribe('event-client.kdlal.test1', (message, headers, topic, routingKey) => {
-            console.log('CS1: Received message: ', message, ' | ', headers, ' | RoutingKey: ', routingKey);
-            return true;
-        }).catch(console.error);
+        // const subRes1 = await cs1.subscribe('event-client.kdlal.test1', (message, headers, topic, routingKey) => {
+        // const subRes1 = await cs1.subscribe('test-topic', (message, headers, topic, routingKey) => {
+        //     console.log('CS1: Received message: ', message, ' | ', headers, ' | RoutingKey: ', routingKey);
+        //     return true;
+        // }).catch(e => {
+        //     console.error(e);
+        // });
 
         // const subRes2 = await cs1.subscribe('event-client.debug.test2', (message, headers, topic, routingKey) => {
         //     console.log('CS1: Received message: ', message, ' | ', headers, ' | RoutingKey: ', routingKey);
@@ -92,13 +97,13 @@ function main() {
         //     console.log('Main: Received message: ', message);
         // });
 
-        const cs2 = new EventClient(extend(true, config, {consumerGroupId: 'beta'}));
-        await cs2.init();
+        // const cs2 = new EventClient(extend(true, config, {consumerGroupId: 'beta'}));
+        // await cs2.init();
 
-        await cs2.subscribe('event-client.#', (message, headers) => {
-            console.log('CS2: Received message: ', message, '-', headers);
-            return true;
-        }).catch(console.error);
+        // await cs2.subscribe('event-client.#', (message, headers) => {
+        //     console.log('CS2: Received message: ', message, '-', headers);
+        //     return true;
+        // }).catch(console.error);
 
 
         // setInterval(() => {
@@ -120,10 +125,10 @@ function main() {
         //     }
         // }, 5000);
 
-        setInterval(() => {
-            // console.log('keepalive');
-            sendFn();
-        }, 5000);
+        // setInterval(() => {
+        //     // console.log('keepalive');
+        //     sendFn();
+        // }, 5000);
 
         resolve(true);
     });

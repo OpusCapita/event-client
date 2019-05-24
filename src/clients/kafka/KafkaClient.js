@@ -4,6 +4,8 @@ const extend   = require('extend');
 const configService = require('@opuscapita/config');
 const Logger = require('ocbesbn-logger');
 
+const {Kafka} = require('kafkajs');
+
 const Consumer = require('./Consumer');
 const Producer = require('./Producer');
 
@@ -28,8 +30,9 @@ class KafkaClient
 
         this.connectionConfig = null;
 
-        this._consumer = null;
-        this._producer = null;
+        this._connection = null;
+        this._consumer   = null;
+        this._producer   = null;
 
         this.OFF_DEATH = ON_DEATH((signal, err) => {
             this.logger.info('KafkaClient#onDeath: Got signal: ' + signal, ' and error: ', err);
@@ -39,9 +42,10 @@ class KafkaClient
 
     /** *** GETTER *** */
 
-    get consumer()  { return this._consumer; }
-    get producer()  { return this._producer; }
-    get klassName() { return this.constructor.name || 'KafkaClient'; }
+    get connection() { return this._connection; }
+    get consumer()   { return this._consumer; }
+    get producer()   { return this._producer; }
+    get klassName()  { return this.constructor.name || 'KafkaClient'; }
 
     get logger() {
         if (!this._logger)
@@ -168,9 +172,17 @@ class KafkaClient
     {
         this.logger.info(this.klassName, '#init: Initialisation of Kafka event-client instance called.');
 
+        const mqConfig = await this._getMqConfig();
+
+        this._connection = new Kafka({
+            clientId: 'event-client',
+            brokers: [`${mqConfig.host}:${mqConfig.port}`]
+        });
+
         const result = await Promise.all([
-            this._initConsumer(),
-            this._initProducer()
+            this._initConsumer(this.connection, mqConfig),
+            // TODO kafkajs
+            // this._initProducer(this.connection, config)
         ]);
 
         return result;
@@ -249,7 +261,7 @@ class KafkaClient
      */
     async subscribe(subject, callback = null, opts = {}, convertTopic = false)
     {
-        if (!this._consumer)
+        if (!this.consumer)
             await this._initConsumer();
 
         return this.consumer.subscribe(subject, callback, opts, convertTopic);
@@ -263,7 +275,7 @@ class KafkaClient
      */
     unsubscribe(topic)
     {
-        if (!this._consumer) {
+        if (!this.consumer) {
             this.logger.error('KafkaClient#unsubscribe: Trying to unsubscribe but consumer was not initialized.');
             return false;
         }
@@ -283,30 +295,44 @@ class KafkaClient
      * Get this instance's configuration from consul or - if set  - from consulOverride.
      *
      * @private
-     * @async
-     * @function _getConfig
-     * @returns {object} Config object
+     * @method _getConfig
+     * @return {MqConfig}
      */
     async _getMqConfig()
     {
+        /**
+         * Object containing host and port of kafka broker.
+         * @typedef {Object} MqConfig
+         * @property {string} host Hostname of kafka instance
+         * @property {string} port Port number to connect to
+         */
+        /**
+         * @type {MqConfig}
+         */
+        let result = {
+            host: null,
+            port: null
+        };
+
         const isConsulOverride = this.config.consulOverride && this.config.consulOverride.kafkaHost && true;
 
         if (isConsulOverride) {
             const config = this.config.consulOverride;
 
-            return {
+            result = Object.assign(result, {
                 host: config.kafkaHost,
                 port: config.kafkaPort
-            };
+            });
         }
         else {
             const config = this.config.consul;
             const consul = await configService.init();
 
-            const {host, port} = await consul.getEndPoint(config.mqServiceName);
+            /** @type {MqConfig} */
+            const endpoint = await consul.getEndPoint(config.mqServiceName);
 
-            this.onEndpointChanged = async (serviceName) =>
-            {
+            // FIXME @see AmqpClient for proper listener registration
+            this.onEndpointChanged = async (serviceName) => {
                 if (serviceName === config.mqServiceName)
                 {
                     this.logger.info(`Got on onEndpointChange event for service ${serviceName}.`);
@@ -314,6 +340,7 @@ class KafkaClient
                 }
             };
 
+            // FIXME @see AmqpClient for proper listener registration
             this.onPropertyChanged = async (key) => {
                 if (key === config.mqUserKey || key === config.mqPasswordKey) {
                     this.logger.info(`Got onPropertyChanged event for key ${key}.`);
@@ -324,11 +351,11 @@ class KafkaClient
             consul.on('endpointChanged', this.onEndpointChanged);
             consul.on('propertyChanged', this.onPropertyChanged);
 
-            return {
-                host,
-                port
-            };
+            /** @type {MqConfig} */
+            result = Object.assign(result, endpoint);
         }
+
+        return result;
     }
 
     /**
@@ -336,17 +363,18 @@ class KafkaClient
      *
      * @async
      * @function _initConsumer
+     * @param {Kafka} connection - Kafka connection
+     * @param {object} config - Connection configuration
      * @returns {boolean}
      */
-    async _initConsumer()
+    async _initConsumer(connection, config)
     {
         if (this._consumer)
             return true;
 
-        this._consumer = new Consumer(this.config);
+        this._consumer = new Consumer(connection, this.config);
 
-        let connectionConfig = await this._getMqConfig();
-        const connectResult = await this._consumer.connect(connectionConfig);
+        const connectResult = await this._consumer.connect(config);
 
         this.consumer.on('dlqmessage', this._onConsumerDlqMessage.bind(this));
 
@@ -369,7 +397,7 @@ class KafkaClient
 
         this._producer = new Producer(this.config);
 
-        let connectionConfig = await this._getMqConfig();
+        const connectionConfig = await this._getMqConfig();
         await this._producer.connect(connectionConfig);
 
         return true;

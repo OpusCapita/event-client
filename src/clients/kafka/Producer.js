@@ -1,6 +1,5 @@
 const EventEmitter = require('events');
 const Logger = require('ocbesbn-logger');
-const {NProducer} = require('sinek');
 const extend = require('extend');
 const crypto = require('crypto');
 const {ProducerError} = require('./err');

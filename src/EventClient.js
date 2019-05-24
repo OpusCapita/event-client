@@ -274,7 +274,9 @@ class EventClient {
         opts.subject = routingKey; // Add the routingKey as subject to opts for rabbitmq backwards compatibillity.
 
         const topic = routingKey;
-        return this.kafkaClient.subscribe(topic, callback, opts, true);
+        const convertTopic = false; // TODO kafkajs
+
+        return this.kafkaClient.subscribe(topic, callback, opts, convertTopic);
     }
 
     /**

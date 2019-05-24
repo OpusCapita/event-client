@@ -1,25 +1,40 @@
+'use strict';
+
 const retry           = require('bluebird-retry');
 const EventEmitter    = require('events');
 const Logger          = require('ocbesbn-logger');
-const {NConsumer}     = require('sinek');
 const {ConsumerError} = require('./err/');
 const KafkaHelper     = require('./KafkaHelper');
 
-/** Consumer class - interface to the sinek/Consumer implementation. */
+/** Consumer class - interface to the kafkajs-consumer implementation. */
 class Consumer extends EventEmitter
 {
 
-    constructor(config)
+    /**
+     * @param {Object} kafka - Instance of kafkajs client
+     * @param {Object} config
+     */
+    constructor(kafka, config)
     {
         super();
 
+        /** @property {Object} config */
         this.config = config;
-
-        this._connectionConfig = null; // Will be set by Calling Consumer#connect
-
-        this._logger           = config.logger || new Logger();
-        this._consumer         = null;
-        this._analyticsReady   = false;
+        /** @property {Object} _connecionConfig */
+        this._connecionConfig = null; // Will be set by Calling Consumer#connect
+        /** @property {Kafka} _connection */
+        this._connection = kafka;
+        /** @property {Logger} _logger */
+        this._logger = config.logger || new Logger();
+        /** @property {Consumer} _consumer Kafkajs Consumer */
+        this._consumer = kafka.consumer({
+            groupId: config.consumerGroupId,
+            allowAutoTopicCreation: true
+        });
+        /** @property {boolean} _isConsuming */
+        this._isConsuming    = false;
+        /** @property {boolean} _analyticsReady */
+        this._analyticsReady = false;
 
         /**
          * Subject registry is a dict of kafka topic subscriptions on the first level
@@ -33,7 +48,7 @@ class Consumer extends EventEmitter
          *   ...
          * }
          *
-         * @member {Map} _subjectRegistry
+         * @property {Map} _subjectRegistry
          */
         this._subjectRegistry  = new Map();
     }
@@ -61,13 +76,13 @@ class Consumer extends EventEmitter
      */
     async checkHealth()
     {
-        if (!this._consumer)
+        if (!this.consumer)
             throw new ConsumerError('Initialize consumer before accessing health information.', 'ENOTINITIALIZED');
 
-        if (typeof this._consumer.checkHealth !== 'function')
+        if (typeof this.consumer.checkHealth !== 'function')
             throw new ConsumerError('Not supported.', 'ENOTSUPPORTED');
 
-        return this._consumer.checkHealth();
+        return this.consumer.checkHealth();
     }
 
     /**
@@ -91,6 +106,8 @@ class Consumer extends EventEmitter
     /**
      * Create a topic and wait for its creation.
      * Workaround until sinek also exposes the node-rdkafka admin client.
+     *
+     * TODO kafkajs - use admin client to create topics
      *
      * @param {string} topic - Topic name that should be created
      * @param {number} timeout - Timeout to wait for in ms
@@ -127,7 +144,7 @@ class Consumer extends EventEmitter
      */
     async reconnect(config)
     {
-        await this.consumer.close();
+        await this.consumer.disconnect();
         await this.connect(config || this._connectionConfig);
 
         return true;
@@ -153,7 +170,7 @@ class Consumer extends EventEmitter
 
         try {
             if (this._consumer)
-                this._consumer.close(true);
+                await this._consumer.disconnect();
 
             ok = true;
         } catch (e) {
@@ -161,6 +178,8 @@ class Consumer extends EventEmitter
             ok = false;
         } finally {
             setImmediate(() => {
+                this._isConsuming = false;
+
                 if (this.consumer && this.consumer.consumer)
                     this.consumer.consumer = null; // Workaround for sinek bug #101
 
@@ -197,17 +216,22 @@ class Consumer extends EventEmitter
      * TODO Add config flag to consume only messages that arrive AFTER the consumer group was created.
      *
      * @async
-     * @function subscribe
+     * @property {Function} subscribe
      * @param {string} subject
      * @param {function} callback
      * @param {object} opts
      * @param {string} opts.subject - The original routingKey. Used to register locally for later pattern matching on incoming messages.
      * @param {boolean} convertTopic - Indicates if the given topic needs to be converted because it is a RabbitMQ routing key.
-     * @returns {boolean}
-     * @throws {ConsumerError}
+     * @return {Promise}
+     * @fulfil {boolean}
+     * @reject {ConsumerError}
      */
     async subscribe(subject, callback = null, opts = {}, convertTopic = false)
     {
+
+        if (this._isConsuming)
+            throw new ConsumerError('Subscribing after initialization is not supported by kafkajs.');
+
         const topicSubscription = convertTopic ? (KafkaHelper.getTopicFromRoutingKey(subject)).source : subject;
 
         const convertedSubject = (KafkaHelper.convertRabbitWildcard(subject)).source; // FIXME This should be done in EventClient not here, check that subject is a valid subscription but do not convert
@@ -225,25 +249,20 @@ class Consumer extends EventEmitter
         } else {
             // Consume topic and register subject
 
-            let result;
-
             try {
-                result = this._consumer.addSubscriptions([topicSubscription]);
-            } catch (e) {
-                throw new ConsumerError(`Failed to subscribe to subject ${subject}`);
-            }
+                await this._consumer.subscribe({topic: topicSubscription});
 
-            if (result && Array.isArray(result) && result.includes(topicSubscription)) {
                 const subjects = new Map();
                 subjects.set(convertedSubject, callback);
 
                 this._subjectRegistry.set(topicSubscription, subjects);
 
                 this.logger.info(`Consumer#subscribe: Successfully subscribed to topic ${topicSubscription}`);
-            } else {
+            } catch (e) {
                 const errMsg = `Failed to subscribe to topic ${topicSubscription}.`;
                 this.logger.error('Consumer#subscribe: ', errMsg);
-                throw new ConsumerError(errMsg, 'ESUBSCRIBEFAILED', 409);
+                // throw new ConsumerError(errMsg, 'ESUBSCRIBEFAILED', 409);
+                throw new ConsumerError(`Failed to subscribe to subject ${subject}`);
             }
         }
 
@@ -318,15 +337,15 @@ class Consumer extends EventEmitter
      * @param {object} config
      * @param {string} config.host - Kafka node to connect to. Uses internal service discovery to find other kafka nodes.
      * @param {string} config.port - Kafka port.
-     * @param {boolean} [useAsapReceiveMode=false] - Switch reveive mode (1:1 vs. asap)
      * @returns {boolean} true if successful or throws
      */
-    async _connect(config, useAsapReceiveMode = false)
+    async _connect(config)
     {
-        if (this._consumer)
-            return this._doConnect();
+        // TODO kafkajs
+        // if (this._consumer)
+        //     return this._doConnect();
 
-        this._consumer = await this._createConsumer(config);
+        this._consumer = await this._createConsumer();
 
         try {
             await this._doConnect();
@@ -335,53 +354,22 @@ class Consumer extends EventEmitter
             throw e;
         }
 
-        if (this.config && this.config.enableHealthChecks) {
-            this._consumer.enableAnalytics({
-                analyticsInterval: 1000 * 60 * 2, //runs every 2 minutes
-                lagFetchInterval: 1000 * 60 * 5 //runs every 5 minutes (dont run too often!)
-            });
-        }
+        // TODO kafkajs
+        // this._registerConsumerListeners();
 
-        this._registerConsumerListeners();
+        await this.consumer.subscribe({topic: `service__${this.config.serviceName}`}, (...args) => console.log(args));
 
-        const options = {
-            /** grab up to n messages per batch round */
-            batchSize: 1,
+        await this.consumer.run({
+            eachMessage: this._onConsumerMessage.bind(this)
+        });
 
-            /** commit all offsets on every nth batch */
-            commitEveryNBatch: 3,
-
-            /** calls synFunction in parallel * 2 for messages in batch */
-            concurrency: 1,
-
-            /**
-             * commits asynchronously (faster, but potential danger
-             * of growing offline commit request queue)
-             *
-             * @default [true]
-             */
-            commitSync: true
-        };
-
-        /**
-         * Consume message in asap mode, decode message to UTF8 string.
-         *
-         * Info:
-         * - 1 by 1 mode by passing a callback to .consume() - consumes a single message and commit after callback each round
-         *     - The callback provided as first parameter will receive the message and another callback. The callback
-         *       needs to be executed to finish the message processing in the native consumer {@link node-sinek/NConsuer#consume:569}
-         * - asap mode by passing no callback to .consume() - consumes messages as fast as possible
-         */
-        if (useAsapReceiveMode)
-            this._consumer.consume(null, true, false, options);
-        else
-            this._consumer.consume(this._onConsumerMessage.bind(this), true, false);
+        this._isConsuming = true;
 
         return true;
     }
 
     /**
-     * Encapsulates the call to the sinek Consumer.
+     * Encapsulates the call to the kafkajs Consumer.
      *
      * @private
      * @function _doConnect
@@ -404,45 +392,13 @@ class Consumer extends EventEmitter
      * @param {string} config.host - Kafka node to connect to. Uses internal
      *                               service discovery to find other kafka nodes.
      * @param {string} config.port - Kafka port.
-     * @param {boolean} [useNative=true] - Switch between librdkafka and node consumer
      * @returns {object} The created consumer instance
      */
-    _createConsumer(config, useNative = true)
+    _createConsumer(config)
     {
-        if (useNative) {
-            return this._createNativeConsumer(config);
-        }
-    }
-
-    /**
-     *
-     * Factory method to create a kafka consumer using the native implementation.
-     *
-     * @private
-     * @function _createNativeConsumer
-     * @param {object} config
-     * @param {string} config.host - Kafka node to connect to. Uses internal
-     *                               service discovery to find other kafka nodes.
-     * @param {string} config.port - Kafka port.
-     * @returns {object} The created native consumer instance
-     */
-    _createNativeConsumer(config)
-    {
-        return new NConsumer([], {
-            noptions: {
-                'metadata.broker.list': `${config.host}:${config.port}`,
-                'group.id': this.config.consumerGroupId, // Default is serviceName
-                'client.id': 'event-client',
-                // 'enable.auto.commit': true,
-                //'debug': 'all',
-                'event_cb': true,
-                'metadata.max.age.ms': 10000,
-                'topic.metadata.refresh.interval.ms': 1000
-            },
-            tconf: {
-                'auto.offset.reset': 'latest',
-                'request.required.acks': -1
-            }
+        return this._connection.consumer({
+            groupId: this.config.consumerGroupId,
+            metadataMaxAge: 3000
         });
     }
 
@@ -495,6 +451,7 @@ class Consumer extends EventEmitter
      * @param {string} message.value - Message payload. Should contain JSON with metadata and payload
      * @param {string} message.value.properties - Stringified JSON containing message headers maintained by KafkaClient
      * @param {string} message.value.content    - Stringified JSON containing the actual payload of the message. Needs to be deserialized with the parser given in the config from KafkaClient#constructor.
+     * @param {function} doneCb - Callback function that will trigger after message was successully processed
      */
     async _onConsumerMessage(message, doneCb)
     {
@@ -639,6 +596,7 @@ class Consumer extends EventEmitter
             return [];
         }
 
+        // TODO kafkajs
         return this._consumer.consumer.subscription();
     }
 }
