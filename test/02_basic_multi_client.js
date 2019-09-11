@@ -4,7 +4,7 @@
 
 const assert = require('assert');
 const configService = require('@opuscapita/config');
-const Logger = require('ocbesbn-logger');
+const Logger = require('@opuscapita/logger');
 const { EventClient } = require('../lib');
 const rabbitCmd = require('./helpers/rabbitmq');
 

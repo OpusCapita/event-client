@@ -1,5 +1,5 @@
 const configService = require('@opuscapita/config');
-const Logger = require('ocbesbn-logger');
+const Logger = require('@opuscapita/logger');
 const {EventClient} = require('../lib');
 
 // const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis));
