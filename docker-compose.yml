@@ -61,7 +61,7 @@ services:
         restart: on-failure
 
     consul:
-        image: consul:latest
+        image: consul:1.4
         ports:
             - '8400:8400'
             - '8500:8500'
