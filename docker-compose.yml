@@ -18,7 +18,6 @@ services:
             - '5671:5671'
             - '5672:5672'
             - '15672:15672'
-            - '25672:25672'
             - '6666:6666'
         environment:
             RABBITMQ_DEFAULT_USER: $RABBITMQ_USER
@@ -37,7 +36,6 @@ services:
             - '5673:5671'
             - '5674:5672'
             - '15673:15672'
-            - '25673:25672'
             - '6667:6666'
         environment:
             RABBITMQ_DEFAULT_USER: $RABBITMQ_USER
